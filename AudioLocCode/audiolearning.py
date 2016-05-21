@@ -30,6 +30,9 @@ class Classifier:
         test_samples    = array of super samples to be tested on
         phi             = feature extractor on a supersample 
         '''
+        if self.predictor != None:
+            raise ValueError("Error: This classifier has already trained a predictor.")
+            
         samples_per = int(audio_dur/sample_length)
         
         # Allocate more room then we expect, just in case
