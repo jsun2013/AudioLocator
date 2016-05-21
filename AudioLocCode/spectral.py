@@ -106,7 +106,7 @@ def getSupersampleFFT(s, N, spec_meth = spectral_method.periodogram,
                 F[i,j] = np.max(P[(fax>bin_ends[j]) & (fax<=bin_ends[j+1])])
             elif smooth_meth==smooth_method.mean:
                 F[i,j] = np.mean(P[(fax>bin_ends[j]) & (fax<=bin_ends[j+1])])
-            elif smooth_meth==smooth_method.mean:
+            elif smooth_meth==smooth_method.median:
                 F[i,j] = np.median(P[(fax>bin_ends[j]) & (fax<=bin_ends[j+1])])
 
     return (fax,F);
