@@ -86,3 +86,38 @@ sk_lin_model = sk_lin.LinearRegression() # Create new Lin Regression Model
 sk_lin_model.fit(X,bos_df.get("PRICE"))
 print 'Estimated intercept coefficient using Scikit:', sk_lin_model.intercept_
 print 'Estimated number of coefficients using Scikit:', len(sk_lin_model.coef_)
+
+''' Logistic Regression '''
+data = np.array([[ 66.,   0.],
+       [ 70.,   1.],
+       [ 69.,   0.],
+       [ 68.,   0.],
+       [ 67.,   0.],
+       [ 72.,   0.],
+       [ 73.,   0.],
+       [ 70.,   0.],
+       [ 57.,   1.],
+       [ 63.,   1.],
+       [ 70.,   1.],
+       [ 78.,   0.],
+       [ 67.,   0.],
+       [ 53.,   1.],
+       [ 67.,   0.],
+       [ 75.,   0.],
+       [ 70.,   0.],
+       [ 81.,   0.],
+       [ 76.,   0.],
+       [ 79.,   0.],
+       [ 75.,   1.],
+       [ 76.,   0.],
+       [ 58.,   1.]])
+logit_reg = sk_lin.LogisticRegression(C=1e5) # Regularization defaults to 1?
+X = data[:,0].reshape(len(data[:,0]),1)
+Y = data[:,1]
+
+logit_reg.fit(X,Y)
+
+x_range = np.arange(X.min() - .5, X.max() + .5)
+x_range = x_range.reshape(len(x_range),1)
+
+pred = logit_reg.predict(x_range)
