@@ -6,11 +6,14 @@ Created on Fri May 20 12:06:50 2016
 """
 
 import samples
+reload(samples)
 import numpy as np
 from sklearn import linear_model
 from statsmodels.tsa import stattools
 import spectral
+reload(spectral)
 import audiolearning
+reload(audiolearning)
 from scipy import stats
 
 np.random.seed(25)
@@ -47,8 +50,10 @@ np.random.shuffle(all_samples);
 numTrain = int(round(2*len(all_samples)/3))
 train_samples = all_samples[:numTrain]
 test_samples = all_samples[numTrain:]
+logistic_classifier = audiolearning.Classifier(phi)
+logistic_classifier.trainLogitBatch(train_samples,test_samples)
 
-logistic_classifier = audiolearning.trainLogitBatch(train_samples,test_samples,phi)
+#logistic_classifier = audiolearning.trainLogitBatch(train_samples,test_samples,phi)
 
 ## Allocate more room then we expect, just in case
 #X = np.zeros((2*samples_per*len(train_samples),acf_lags+1+fft_bins+1+1))
