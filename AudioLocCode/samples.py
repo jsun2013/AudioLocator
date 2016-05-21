@@ -18,6 +18,9 @@ if RECORD_DIR==None or not os.path.isdir(RECORD_DIR):
     RECORD_DIR = None
     print "Did not find 'RECORDINGS_LOC' home directory. Please Set."
 
+
+#TODO: Add normalization???
+
 #Quick compile of recording filename regex
 fn = re.compile('recording-(\d+)-(\d+)*');
 
@@ -50,9 +53,13 @@ class Supersample:
     wf = None;
     waveparms = None;
     data = None; data_read = 0;
+    samples = None; samples_loaded = 0;
 
     def __init__(self,path,get_attrs=False):
         self.path = path;
+        if not os.path.exists(path):
+            raise ValueError('Given path for supersample does not exist!!');
+
         (thisdir, self.filename) = os.path.split(self.path);
         res = fn.match(self.filename);
         self.date = datetime.date(int(res.groups()[0][0:4]), int(res.groups()[0][4:6]),
@@ -86,7 +93,31 @@ class Supersample:
         self.waveparms.L = self.wf.getnframes();
         self.wf.close();
 
-    def read_data(self,start = None, length = None, unit = None):
+    def gather_samples(self,T=10,N=None):
+        '''
+        T = duration in seconds of each sample within supersample
+        N = number of samples to gather. None -> process all
+        '''
+        if self.waveparms == None:
+            self.read_parms();
+        L = T*self.waveparms.fs;
+        Nmax = np.int(np.floor(self.waveparms.L/L));
+        if N==None or N>Nmax:
+            N=Nmax;
+        self.samples = np.empty([N,L])
+        data = np.array(wavfile.read(self.path)[1],dtype=float);
+        for isample in range(N):
+            #Grab just first channel
+            if self.waveparms.nchannels == 2:
+                this_sample = data[isample*L:(isample+1)*L,0]
+            else:
+                this_sample = data[isample*L:(isample+1)*L]
+            #Convert to float, normalized to [-1,1]
+            self.samples[isample,:] = this_sample/(2**(self.waveparms.sampwidth*8-1));
+        self.samples_loaded = 1
+
+
+    def read_some_data(self,start = None, length = None, unit = None):
         if self.waveparms == None:
             self.read_parms();
 
@@ -120,12 +151,17 @@ class Supersample:
         #For the purpose of saving memory,
         self.data = None; self.data_read = 0;
 
-def getAllSamples():
+def getAllSamples(T=None,N=None):
     samples = [];
+    i=0;
     for root, dirs, files in os.walk(RECORD_DIR):
         for jfile in files:
             if os.path.splitext(jfile)[1] == '.wav':
                 samples.append(Supersample(os.path.join(root,jfile)));
+                if T!=None:
+                    samples[i].gather_samples(T,N);
+                i+=1;
+    print "Imported %i Supersamples"%i
     return samples;
 
 
