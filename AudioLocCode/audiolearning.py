@@ -1,0 +1,76 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Sat May 21 09:58:56 2016
+
+@author: James
+"""
+from sklearn import linear_model
+from statsmodels.tsa import stattools
+import numpy as np
+from scipy import stats
+
+class Classifier:
+    '''
+    Classifier class. Extracts features/makes a prediction based on input audio
+    data.
+    '''
+    def __init__(self,predictor,phi):
+        self.predictor = predictor
+        self.phi = phi
+    def extract_features(self,X):
+        return self.phi(X)
+    def make_prediction(self,X):
+        phiX = self.phi(X)
+        return self.predictor(phiX)
+        
+
+def trainLogitBatch(train_samples,test_samples,phi, audio_dur=60, sample_length=10, acf_lags = 40, fft_bins = 40):
+    '''
+    train_samples   = array of super samples to be trained on
+    test_samples    = array of super samples to be tested on
+    phi             = feature extractor on a supersample 
+    '''
+    samples_per = int(audio_dur/sample_length)
+    
+    # Allocate more room then we expect, just in case
+    X = np.zeros((2*samples_per*len(train_samples),acf_lags+1+fft_bins+1+1))
+    Y = np.zeros(2*samples_per*len(train_samples),dtype=np.int8)
+    
+    k = 0
+    for super_sample in train_samples:    
+        phi_X = phi(super_sample)
+        numSamples,_ = phi_X.shape
+        X[k:k+numSamples,:] = phi_X
+        Y[k:k+numSamples] = super_sample.region
+        k += numSamples
+    
+    X_train = X[:k,:]
+    Y_train = Y[:k]
+    
+    log_reg = linear_model.LogisticRegression(C=500)
+    log_reg.fit(X_train,Y_train)
+    def logistic_predictor(X):
+        votes = log_reg.predict(X)
+        return stats.mode(votes).mode[0]
+    
+    logistic_classifier = Classifier(logistic_predictor,phi)
+    
+    train_actual = np.zeros((len(train_samples),1))
+    train_hat = np.zeros((len(train_samples),1))
+    
+    for super_sample,i in zip(train_samples,range(len(train_samples))):
+        train_actual[i] = super_sample.region
+        train_hat[i] = logistic_classifier.make_prediction(super_sample)
+    
+    print("Finished Training Logistic Classifier with Training Error:---------------")
+    for region in range(7):
+        actual = train_actual[train_actual == region]
+        pred = train_hat[train_actual == region]
+        err = 1 - float(sum(actual == pred))/len(actual)
+        print "Error for region %d: %.4f" % (region,err)
+    totalErr = 1 - float(sum(train_actual == train_hat))/len(train_actual)
+    print "---- Total Training Error: %.4f" % totalErr
+    
+    #TODO figure out best way to return testing data
+    return logistic_classifier
+        
