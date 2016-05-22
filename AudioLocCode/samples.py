@@ -20,6 +20,9 @@ if RECORD_DIR==None or not os.path.isdir(RECORD_DIR):
     print "Did not find 'RECORDINGS_LOC' home directory. Please Set."
 csv_path = os.path.join(RECORD_DIR,'metadata.csv')
 
+#Add feature to read audio file only as needed.
+READOUT = True
+
 #TODO: Add normalization???
 
 #Quick compile of recording filename regex
@@ -104,6 +107,20 @@ class Supersample:
         self.waveparms.L = self.wf.getnframes();
         self.wf.close();
 
+    def readoutSamples(self):
+        L = self.T*self.waveparms.fs;
+        samples = np.empty([self.N,L]);
+        data = np.array(wavfile.read(self.path)[1],dtype=float);
+        for isample in range(self.N):
+            #Grab just first channel
+            if self.waveparms.nchannels == 2:
+                this_sample = data[isample*L:(isample+1)*L,0]
+            else:
+                this_sample = data[isample*L:(isample+1)*L]
+            #Convert to float, normalized to [-1,1]
+            samples[isample,:] = this_sample/(2**(self.waveparms.sampwidth*8-1));
+        return samples
+
     def gather_samples(self,T=10,N=None):
         '''
         T = duration in seconds of each sample within supersample
@@ -111,10 +128,16 @@ class Supersample:
         '''
         if self.waveparms == None:
             self.read_parms();
-        L = T*self.waveparms.fs;
+            #L = number of time steps per sample
+        self.L = T*self.waveparms.fs; L = self.L;
         Nmax = np.int(np.floor(self.waveparms.L/L));
         if N==None or N>Nmax:
             N=Nmax;
+
+        self.T = T; self.N = N;
+
+        if READOUT:
+            return;
 
         self.samples = np.empty([N,L])
         data = np.array(wavfile.read(self.path)[1],dtype=float);
@@ -127,7 +150,6 @@ class Supersample:
             #Convert to float, normalized to [-1,1]
             self.samples[isample,:] = this_sample/(2**(self.waveparms.sampwidth*8-1));
         self.samples_loaded = 1
-        self.T = T; self.N = N;
 
 
     def read_data(self,start = None, length = None, unit = None):
