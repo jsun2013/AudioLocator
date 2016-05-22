@@ -9,6 +9,7 @@ import sys, os, datetime, re
 import wave
 import numpy as np
 from scipy.io import wavfile
+import csv
 
 #IF NEEDED, run:
 #  os.putenv('RECORDINGS_LOC',r'C:\Users\ReidW\Google Drive\Stanford\CS229\AudioLocator\Recordings')
@@ -17,7 +18,7 @@ RECORD_DIR = os.environ.get('RECORDINGS_LOC');
 if RECORD_DIR==None or not os.path.isdir(RECORD_DIR):
     RECORD_DIR = None
     print "Did not find 'RECORDINGS_LOC' home directory. Please Set."
-
+csv_path = os.path.join(RECORD_DIR,'metadata.csv')
 
 #TODO: Add normalization???
 
@@ -54,6 +55,10 @@ class Supersample:
     waveparms = None;
     data = None; data_read = 0;
     samples = None; samples_loaded = 0;
+    T = 0; #Length of each sample in supersample
+    N = 0; #Number of samples in supersample read in
+    phone = None;
+    attrs = {};
 
     def __init__(self,path,get_attrs=False):
         self.path = path;
@@ -79,9 +84,15 @@ class Supersample:
 
     def get_attrs(self):
         #Reads in the metadata file to find its attributes
-
+        fname=os.path.splitext(self.filename)[0]
+        with open(csv_path) as csvfile:
+            mycsv = csv.reader(csvfile)
+            for row in mycsv:
+                if row[0]==fname:
+                    self.attrs['phone'] = row[4];
+                    break;
         #If CSV mismatches previous set for region (from folder), complain
-        pass
+
 
 
     def read_parms(self):
@@ -104,6 +115,7 @@ class Supersample:
         Nmax = np.int(np.floor(self.waveparms.L/L));
         if N==None or N>Nmax:
             N=Nmax;
+
         self.samples = np.empty([N,L])
         data = np.array(wavfile.read(self.path)[1],dtype=float);
         for isample in range(N):
@@ -115,9 +127,10 @@ class Supersample:
             #Convert to float, normalized to [-1,1]
             self.samples[isample,:] = this_sample/(2**(self.waveparms.sampwidth*8-1));
         self.samples_loaded = 1
+        self.T = T; self.N = N;
 
 
-    def read_some_data(self,start = None, length = None, unit = None):
+    def read_data(self,start = None, length = None, unit = None):
         if self.waveparms == None:
             self.read_parms();
 
@@ -151,16 +164,27 @@ class Supersample:
         #For the purpose of saving memory,
         self.data = None; self.data_read = 0;
 
-def getAllSamples(T=None,N=None):
+def getAllSamples(T=None,N=None,key=None,val=None):
     samples = [];
     i=0;
     for root, dirs, files in os.walk(RECORD_DIR):
         for jfile in files:
             if os.path.splitext(jfile)[1] == '.wav':
-                samples.append(Supersample(os.path.join(root,jfile)));
-                if T!=None:
-                    samples[i].gather_samples(T,N);
-                i+=1;
+                this_sample = Supersample(os.path.join(root,jfile));
+                if key!=None:
+                    #Put a key here for getting only certain data
+                    this_sample.get_attrs();
+                    if this_sample.attrs[key] == val:
+                        samples.append(this_sample);
+                        #Add only if our key/val match
+                        if T!=None:
+                            samples[i].gather_samples(T,N);
+                        i+=1;
+                else:
+                    samples.append(this_sample);
+                    if T!=None:
+                        samples[i].gather_samples(T,N);
+                    i+=1;
     print "Imported %i Supersamples"%i
     return samples;
 
@@ -169,3 +193,7 @@ def findSamples(key,val):
     #Find samples based on the value of a key, such as day of week, and time range
     #TODO
     pass
+
+wavefile = r'C:\Users\ReidW\Google Drive\Stanford\CS229\AudioLocator\Recordings\Arrillaga\recording-20160515-185508.wav'
+mysamp = Supersample(wavefile)
+mysamp.get_attrs()

@@ -1,0 +1,75 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Sat May 21 13:26:24 2016
+
+@author: ReidW
+"""
+
+import samples
+reload(samples)
+import numpy as np
+from sklearn import linear_model
+from statsmodels.tsa import stattools
+import spectral
+reload(spectral)
+import audiolearning
+reload(audiolearning)
+from scipy import stats
+
+FFT_BINS = 80;
+
+class phi1:
+    LEN = 0;
+    def __init__(self,fft_bins):
+        self.LEN = fft_bins+1;
+        self.fft_bins = fft_bins;
+
+    def get_phi(self,super_sample):
+        '''
+        Takes in a super_sample and returns a feature array. Breaks the super_sample
+        down into samples. Each row of the returned value corresponds to a sample
+        in the super sample.
+        '''
+
+        XSPED = spectral.getSupersampleSPED(super_sample,self.fft_bins,spacing="log")
+        XMean = np.zeros((np.shape(XSPED)[0],1))
+        for j,data in enumerate(super_sample.samples):
+            #XFFT[j,:] = F_all[j,:]
+            XMean[j] = np.mean(data)
+        return np.hstack((XSPED,XMean))
+
+
+#all_samples = samples.getAllSamples(T=2,N=25,key="phone",val="Reid") #2 second samples, 20 samples per supersample
+all_samples = samples.getAllSamples(T=5,N=10) #2 second samples, 20 samples per supersample
+
+np.random.shuffle(all_samples);
+numTrain = int(round(2*len(all_samples)/3))
+train_samples = all_samples[:numTrain]
+test_samples = all_samples[numTrain:]
+
+nfft_bins = FFT_BINS;
+myPhi = phi1(nfft_bins);
+logistic_classifier = audiolearning.Classifier(myPhi);
+logistic_classifier.trainLogitBatch2(train_samples,test_samples);
+
+n_test = len(test_samples);
+test_actual = np.zeros((n_test,1))
+test_hat = np.zeros((n_test,1))
+for (i,isup) in enumerate(test_samples):
+    test_actual[i] = isup.region
+    test_hat[i] = logistic_classifier.make_prediction(isup)
+
+print("-----------------------------------------------------")
+print("-------------------Testing Error:-------------------")
+for region in range(7):
+    actual = test_actual[test_actual == region]
+    pred = test_hat[test_actual == region]
+    if len(actual)==0:
+        print("  ->No test samples from Region %d"%region)
+        continue
+    err = 1 - float(sum(actual == pred))/len(actual)
+    print "Error for region %d: %.4f" % (region,err)
+totalErr = 1 - float(sum(test_actual == test_hat))/n_test
+print "---- Total Testing Error: %.4f" % totalErr
+
+
