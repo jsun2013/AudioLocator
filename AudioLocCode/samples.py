@@ -115,6 +115,7 @@ class Supersample:
         Nmax = np.int(np.floor(self.waveparms.L/L));
         if N==None or N>Nmax:
             N=Nmax;
+
         self.samples = np.empty([N,L])
         data = np.array(wavfile.read(self.path)[1],dtype=float);
         for isample in range(N):
