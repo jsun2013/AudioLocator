@@ -109,6 +109,69 @@ def getSupersampleFFT(s, N, spec_meth = spectral_method.periodogram,
             elif smooth_meth==smooth_method.median:
                 F[i,j] = np.median(P[(fax>bin_ends[j]) & (fax<=bin_ends[j+1])])
 
+    #TODO: if we want a frequency axis, use centers of bins. Current axis doesn't match data returned.
     return (fax,F);
-#import matplotlib.pyplot as plt
+
+
+
+def getSupersampleSPED(s, N, twin = 5, fwin = 21, nperseg=256, spacing="log"):
+    if s.samples_loaded == 0:
+        #Data has not been read in yet
+        #TODO: read automatically?
+        raise ValueError("Error: sample data not read in yet before getSupersampleFFT()")
+
+    #For simplicity, twin, fwin must be odd
+    twin = int( 2*np.floor(twin/2) + 1);
+    fwin = int( 2*np.floor(fwin/2) + 1);
+
+    fs = s.waveparms.fs;
+    (M,L) = np.shape(s.samples);
+
+    BLOCKSIZE = 2**10
+    #Next power of 2
+    mf = np.log2(L);
+    mi = np.ceil(mf);
+    L2 = 2**mi;
+
+    F = np.empty([M,N]); #Array for storing feature output, N for each sample, M samples per supersample
+    for i in range(M):
+        isample = s.samples[i,:];
+        #Get spectrogram of this sample
+        fax, tax, spec = signal.spectrogram(isample,fs,nperseg=nperseg,nfft=BLOCKSIZE);
+
+        (nf,nt) = np.shape(spec);
+
+        spec_stack = np.zeros([nf,nt,int(twin*fwin)]);
+        spec_stack[:,:,0] = spec; #no offset
+        istack=1;
+        for dt in (range(twin)-np.floor(twin/2)):
+            for df in (range(fwin)-np.floor(fwin/2)):
+                if dt==0 and df==0:
+                    continue; #Skip the no-shift case
+
+                #Take original spectrogram, shift in time/frequency
+                d_spec = spec[ max(df,0):min(nf+df,nf), max(dt,0):min(nt+dt,nt) ];
+                #Drop on top of original
+                spec_stack[ 0:nf-abs(df), 0:nt-abs(dt) ,istack] = d_spec;
+                istack+=1;
+
+        isped = np.round(np.argmax(spec_stack,2)==0);
+        ispedf = np.sum(isped,1)[0:nf-abs(df)];
+        fax = fax[0:nf-abs(df)];
+
+        #Need to downsample to N bins
+        if spacing=="log":
+            lbase = 3.0;
+            bin_ends = np.logspace(np.log10(fax[3])/np.log10(lbase),np.log10(fax[-1])/np.log10(lbase),N+1,base=lbase)
+        elif spacing=="lin":
+            bin_ends = np.linspace(fax[1],fax[-1],N+1)
+        bin_ends[0] = -1;
+
+        for j in range(N):
+            isped_bin = ispedf[(fax>bin_ends[j]) & (fax<=bin_ends[j+1])];
+            isped_bin.sort(); isped_bin[:] = isped_bin[::-1];
+
+            F[i,j] = np.sum(isped_bin[0:min(5,np.size(isped_bin))]);
+
+    return F
 
