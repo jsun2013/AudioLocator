@@ -1,18 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-Created on Sat May 21 22:22:28 2016
+Created on Sun May 22 14:52:29 2016
 
 @author: ReidW
 """
+
+
 import time
-
-import samples
-reload(samples)
-import spectral
-reload(spectral)
-import audiolearning
-reload(audiolearning)
-
 def tic():
     #Homemade version of matlab tic and toc functions
 
@@ -25,9 +19,3 @@ def toc():
         print "Elapsed time is " + str(time.time() - startTime_for_tictoc) + " seconds."
     else:
         print "Toc: start time not set"
-
-tic()
-all_samples = samples.getAllSamples(T=3,N=1,key="phone",val="Reid")
-spectral.getAllSPED(all_samples,20);
-toc()
-

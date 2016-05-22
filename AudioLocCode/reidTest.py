@@ -5,18 +5,20 @@ Created on Sat May 21 13:26:24 2016
 @author: ReidW
 """
 
-import samples
-reload(samples)
 import numpy as np
 from sklearn import linear_model
 from statsmodels.tsa import stattools
+from scipy import stats
+
+import samples
+reload(samples)
 import spectral
 reload(spectral)
 import audiolearning
 reload(audiolearning)
-from scipy import stats
+import mytimer as mt
 
-FFT_BINS = 80;
+FFT_BINS = 40;
 
 class phi1:
     LEN = 0;
@@ -33,14 +35,16 @@ class phi1:
 
         XSPED = spectral.getSupersampleSPED(super_sample,self.fft_bins,spacing="log")
         XMean = np.zeros((np.shape(XSPED)[0],1))
-        for j,data in enumerate(super_sample.samples):
+        samples = super_sample.readoutSamples();
+        for j,data in enumerate(samples):
             #XFFT[j,:] = F_all[j,:]
             XMean[j] = np.mean(data)
         return np.hstack((XSPED,XMean))
 
-
-#all_samples = samples.getAllSamples(T=2,N=25,key="phone",val="Reid") #2 second samples, 20 samples per supersample
-all_samples = samples.getAllSamples(T=5,N=10) #2 second samples, 20 samples per supersample
+mt.tic()
+all_samples = samples.getAllSamples(T=2,N=25,key="phone",val="Reid") #2 second samples, 20 samples per supersample
+#all_samples = samples.getAllSamples(T=5,N=10) #2 second samples, 20 samples per supersample
+#  all_samples = samples.getAllSamples(T=2,N=25,key="phone",val="James") #2 second samples, 20 samples per supersample
 
 np.random.shuffle(all_samples);
 numTrain = int(round(2*len(all_samples)/3))
@@ -72,4 +76,4 @@ for region in range(7):
 totalErr = 1 - float(sum(test_actual == test_hat))/n_test
 print "---- Total Testing Error: %.4f" % totalErr
 
-
+mt.toc()
