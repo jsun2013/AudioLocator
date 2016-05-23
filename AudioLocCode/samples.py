@@ -113,7 +113,7 @@ class Sample:
         #Return data as an array of subsamples
         if self.data_loaded:
             samp_data = np.empty((self.Nsub,self.Lsub));
-            for isub in self.Nsub:
+            for isub in range(self.Nsub):
                 samp_data[isub,:] = self.data[isub*self.Lsub:(isub+1)*self.Lsub];
         else:
             data = np.array(wavfile.read(self.path)[1],dtype=float);
@@ -197,14 +197,14 @@ def getAllSamples(Tsub=None,Nsub=None,key=None,val=None,READ_IN=True):
                     data = np.array(wavfile.read(jpath)[1],dtype=float);
                     for isample in range(Nsamp):
                         #Grab just first channel
-                        if file_parms.waveparms.nchannels == 2:
+                        if file_parms.nchannels == 2:
                             this_sample_data = data[isample*Lsamp:(isample+1)*Lsamp,0]
                         else:
                             this_sample_data = data[isample*Lsamp:(isample+1)*Lsamp]
 
                         this_sample = Sample(jpath, Lsub, Nsub, wp = file_parms, start_index = isample*Lsamp)
                         #Convert to float, normalized to [-1,1]
-                        this_sample.data = this_sample_data/(2**(self.waveparms.sampwidth*8-1));
+                        this_sample.data = this_sample_data/(2**(file_parms.sampwidth*8-1));
                         this_sample.data_loaded = 1;
                         samples.append(this_sample);
                         i+=1;
