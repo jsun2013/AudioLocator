@@ -18,7 +18,7 @@ import audiolearning
 reload(audiolearning)
 import mytimer as mt
 
-FFT_BINS = 40;
+FFT_BINS = 60;
 
 class phi1:
     LEN = 0;
@@ -40,6 +40,7 @@ class phi1:
             #XFFT[j,:] = F_all[j,:]
             XMean[j] = np.mean(data)
         return np.hstack((XSPED,XMean))
+
 if __name__ == "__main__":
     mt.tic()
     all_samples = samples.getAllSamples(Tsub=2,Nsub=5,key="phone",val="Reid",READ_IN=True) #2 second subsamples, 5 per sample

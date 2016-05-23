@@ -208,7 +208,7 @@ def getSupersampleSPED(s, N, twin = 3, fwin = 21, nperseg=256, spacing="log"):
             isped_bin = ispedf[(fax>bin_ends[j]) & (fax<=bin_ends[j+1])];
             isped_bin.sort(); isped_bin[:] = isped_bin[::-1];
 
-            F[i,j] = np.sum(isped_bin[0:min(3,np.size(isped_bin))]);
+            F[i,j] = np.sum(isped_bin[0:min(5,np.size(isped_bin))]);
 
         F; #bp
 
