@@ -67,11 +67,8 @@ def getSupersampleFFT(s, N, spec_meth = spectral_method.periodogram,
 
     if N is specified, it will be used over T
     '''
-    if s.samples_loaded == 0:
-        #Data has not been read in yet
-        #TODO: read automatically?
-        raise ValueError("Error: sample data not read in yet before getSupersampleFFT()")
 
+    samples = s.getSubsamples();
     fs = s.waveparms.fs;
     #TODO: next power of 2?
     (M,L) = np.shape(s.samples);
@@ -83,7 +80,7 @@ def getSupersampleFFT(s, N, spec_meth = spectral_method.periodogram,
     #Run
     F = np.empty([M,N]); #Array for storing feature output, N for each sample, M samples per supersample
     for i in range(M):
-        isample = s.samples[i,:];
+        isample = samples[i,:];
 
         #Use specified method to get a spectrum
         if spec_meth==spectral_method.periodogram:
@@ -130,13 +127,7 @@ def getAllSPED(sups, N, twin = 3, fwin = 21, nperseg=256, spacing="log"):
 
 
 def getSupersampleSPED(s, N, twin = 3, fwin = 21, nperseg=256, spacing="log"):
-    if s.samples_loaded == 0:
-        #Data has not been read in yet
-        #TODO: read automatically?
-        #raise ValueError("Error: sample data not read in yet before getSupersampleFFT()")
-        samples = s.readoutSamples();
-    else:
-        samples = s.samples;
+    samples = s.getSubsamples();
     #For simplicity, twin, fwin must be odd
     twin = int( 2*np.floor(twin/2) + 1);
     fwin = int( 2*np.floor(fwin/2) + 1);
