@@ -216,6 +216,6 @@ def findSamples(key,val):
     #TODO
     pass
 
-wavefile = r'C:\Users\ReidW\Google Drive\Stanford\CS229\AudioLocator\Recordings\Arrillaga\recording-20160515-185508.wav'
-mysamp = Supersample(wavefile)
-mysamp.get_attrs()
+#wavefile = r'C:\Users\ReidW\Google Drive\Stanford\CS229\AudioLocator\Recordings\Arrillaga\recording-20160515-185508.wav'
+#mysamp = Supersample(wavefile)
+#mysamp.get_attrs()

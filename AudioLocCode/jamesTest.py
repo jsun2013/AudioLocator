@@ -45,9 +45,9 @@ class phi1:
             #XFFT[j,:] = F_all[j,:]
 #            XAcf[j,:] = stattools.acf(data,nlags=self.acf_lags,fft=True)
 #            XMean[j] = np.mean(data)
-            temp = np.mean(features.mfcc(data,fs=44100)[0],0)
+            temp = features.mfcc(data,fs=44100)[0]
             temp[~np.isfinite(temp)] = 0            
-            XMFCC[j,:] = temp
+            XMFCC[j,:] = np.mean(temp,0)
 #        return np.hstack((XMFCC,XMean,XAcf))
         return XMFCC
 
@@ -64,29 +64,33 @@ test_samples = all_samples[numTrain:]
 nfft_bins = FFT_BINS;
 myPhi = phi1(nfft_bins,ACF_LAGS);
 logistic_classifier = audiolearning.Classifier(myPhi);
-logistic_classifier.trainLogitBatch2(train_samples,test_samples,C=5);
+logistic_classifier.trainLogitBatch(train_samples,C=300);
+logistic_classifier.testClassifier(test_samples)
 
 svm_classifier = audiolearning.Classifier(myPhi)
-svm_classifier.trainSVMBatch(train_samples,test_samples,C=100)
+svm_classifier.trainSVMBatch(train_samples,test_samples,C=500)
+svm_classifier.testClassifier(test_samples)
 
-n_test = len(test_samples);
-test_actual = np.zeros((n_test,1))
-test_hat = np.zeros((n_test,1))
-for (i,isup) in enumerate(test_samples):
-    test_actual[i] = isup.region
-    test_hat[i] = svm_classifier.make_prediction(isup)
 
-print("-----------------------------------------------------")
-print("-------------------Testing Error:-------------------")
-for region in range(7):
-    actual = test_actual[test_actual == region]
-    pred = test_hat[test_actual == region]
-    if len(actual)==0:
-        print("  ->No test samples from Region %d"%region)
-        continue
-    err = 1 - float(sum(actual == pred))/len(actual)
-    print "Error for region %d: %.4f" % (region,err)
-totalErr = 1 - float(sum(test_actual == test_hat))/n_test
-print "---- Total Testing Error: %.4f" % totalErr
+
+#n_test = len(test_samples);
+#test_actual = np.zeros((n_test,1))
+#test_hat = np.zeros((n_test,1))
+#for (i,isup) in enumerate(test_samples):
+#    test_actual[i] = isup.region
+#    test_hat[i] = svm_classifier.make_prediction(isup)
+#
+#print("-----------------------------------------------------")
+#print("-------------------Testing Error:-------------------")
+#for region in range(7):
+#    actual = test_actual[test_actual == region]
+#    pred = test_hat[test_actual == region]
+#    if len(actual)==0:
+#        print("  ->No test samples from Region %d"%region)
+#        continue
+#    err = 1 - float(sum(actual == pred))/len(actual)
+#    print "Error for region %d: %.4f" % (region,err)
+#totalErr = 1 - float(sum(test_actual == test_hat))/n_test
+#print "---- Total Testing Error: %.4f" % totalErr
 
 mt.toc()

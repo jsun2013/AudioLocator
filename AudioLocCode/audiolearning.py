@@ -4,10 +4,11 @@ Created on Sat May 21 09:58:56 2016
 
 @author: James
 """
-from sklearn import linear_model,svm
+from sklearn import linear_model,svm,ensemble
 from statsmodels.tsa import stattools
 import numpy as np
 from scipy import stats
+import warnings
 
 class Classifier:
     '''
@@ -17,6 +18,8 @@ class Classifier:
     def __init__(self,phi):
         self.phi = phi
         self.predictor = None
+    def isTrained(self):
+        return self.predictor == None
     def extract_features(self,X):
         #return self.phi(X)
         return self.phi.get_phi(X)
@@ -25,7 +28,7 @@ class Classifier:
         votes = self.predictor.predict(phiX)
         return stats.mode(votes).mode[0]
         
-    def trainSVMBatch(self,train_samples,test_samples,kernel='rbf',C=500):
+    def trainSVMBatch(self,train_samples,kernel='rbf',C=500):
         '''
         Train a kernalized SVM that separates a supersample into a batch 
         of samples. The samples are then used to train the SVM as
@@ -66,7 +69,7 @@ class Classifier:
             train_actual[i] = super_sample.region
             train_hat[i] = self.make_prediction(super_sample)
 
-        print("Finished Training Logistic Classifier with Training Error:---------------")
+        print("Finished Training Classifier with Training Error:---------------")
         for region in range(7):
             actual = train_actual[train_actual == region]
             pred = train_hat[train_actual == region]
@@ -75,7 +78,15 @@ class Classifier:
         totalErr = 1 - float(sum(train_actual == train_hat))/len(train_actual)
         print "---- Total Training Error: %.4f" % totalErr
 
-    def trainLogitBatch2(self,train_samples,test_samples,C=500):
+    def trainLogitBatch2(self,train_samples,test_sampes=None,C=500):
+        '''
+        Deprecated, does  the same as trainLogitBatch
+        '''
+        warnings.warn("trainLogitBatch2 does the same as trainLogitBatch. Switch to using that one")
+        self.trainLogitBatch(train_samples,C)
+
+
+    def trainLogitBatch(self,train_samples,C=500):
         '''
         Train a logistic regression that separates a supersample into a batch 
         of samples. The samples are then used to train a logistic regression as
@@ -115,7 +126,7 @@ class Classifier:
             train_actual[i] = super_sample.region
             train_hat[i] = self.make_prediction(super_sample)
 
-        print("Finished Training Logistic Classifier with Training Error:---------------")
+        print("Finished Training Classifier with Training Error:---------------")
         for region in range(7):
             actual = train_actual[train_actual == region]
             pred = train_hat[train_actual == region]
@@ -125,51 +136,26 @@ class Classifier:
         print "---- Total Training Error: %.4f" % totalErr
 
 
-    def trainLogitBatch(self,train_samples,test_samples, audio_dur=60, sample_length=10, acf_lags = 40, fft_bins = 40):
-        '''
-        train_samples   = array of super samples to be trained on
-        test_samples    = array of super samples to be tested on
-        phi             = feature extractor on a supersample
-        '''
-        if self.predictor != None:
-            raise ValueError("Error: This classifier has already trained a predictor.")
-            
-        samples_per = int(audio_dur/sample_length)
-
-        # Allocate more room then we expect, just in case
-        X = np.zeros((2*samples_per*len(train_samples),acf_lags+1+fft_bins+1+1))
-        Y = np.zeros(2*samples_per*len(train_samples),dtype=np.int8)
-
-        k = 0
-        for super_sample in train_samples:
-            phi_X = self.phi(super_sample)
-            numSamples,_ = phi_X.shape
-            X[k:k+numSamples,:] = phi_X
-            Y[k:k+numSamples] = super_sample.region
-            k += numSamples
-
-        X_train = X[:k,:]
-        Y_train = Y[:k]
-
-        log_reg = linear_model.LogisticRegression(C=500)
-        log_reg.fit(X_train,Y_train)
+    def testClassifier(self, test_samples):
+        if self.predictor == None:
+            raise ValueError("Error: This classifier has not been trained yet.")
+        n_test = len(test_samples);
+        test_actual = np.zeros((n_test,1))
+        test_hat = np.zeros((n_test,1))
+        for (i,isup) in enumerate(test_samples):
+            test_actual[i] = isup.region
+            test_hat[i] = self.make_prediction(isup)
         
-        self.predictor = log_reg
-
-        train_actual = np.zeros((len(train_samples),1))
-        train_hat = np.zeros((len(train_samples),1))
-
-        for super_sample,i in zip(train_samples,range(len(train_samples))):
-            train_actual[i] = super_sample.region
-            train_hat[i] = self.make_prediction(super_sample)
-
-        print("Finished Training Logistic Classifier with Training Error:---------------")
+        print("-----------------------------------------------------")
+        print("-------------------Testing Error:-------------------")
         for region in range(7):
-            actual = train_actual[train_actual == region]
-            pred = train_hat[train_actual == region]
+            actual = test_actual[test_actual == region]
+            pred = test_hat[test_actual == region]
+            if len(actual)==0:
+                print("  ->No test samples from Region %d"%region)
+                continue
             err = 1 - float(sum(actual == pred))/len(actual)
             print "Error for region %d: %.4f" % (region,err)
-        totalErr = 1 - float(sum(train_actual == train_hat))/len(train_actual)
-        print "---- Total Training Error: %.4f" % totalErr
-
-        #TODO figure out best way to return testing data
+        totalErr = 1 - float(sum(test_actual == test_hat))/n_test
+        print "---- Total Testing Error: %.4f" % totalErr
+        
