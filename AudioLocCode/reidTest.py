@@ -26,25 +26,23 @@ class phi1:
         self.LEN = fft_bins+1;
         self.fft_bins = fft_bins;
 
-    def get_phi(self,super_sample):
+    def get_phi(self,sample):
         '''
         Takes in a super_sample and returns a feature array. Breaks the super_sample
         down into samples. Each row of the returned value corresponds to a sample
         in the super sample.
         '''
 
-        XSPED = spectral.getSupersampleSPED(super_sample,self.fft_bins,fwin=25,twin = 1,spacing="log")
+        XSPED = spectral.getSupersampleSPED(sample,self.fft_bins,fwin=25,twin = 1,spacing="log")
         XMean = np.zeros((np.shape(XSPED)[0],1))
-        samples = super_sample.readoutSamples();
-        for j,data in enumerate(samples):
+        subsamples = sample.getSubsamples();
+        for j,data in enumerate(subsamples):
             #XFFT[j,:] = F_all[j,:]
             XMean[j] = np.mean(data)
         return np.hstack((XSPED,XMean))
 
 mt.tic()
-all_samples = samples.getAllSamples(T=1,N=50,key="phone",val="Reid") #2 second samples, 20 samples per supersample
-#all_samples = samples.getAllSamples(T=5,N=10) #2 second samples, 20 samples per supersample
-#  all_samples = samples.getAllSamples(T=2,N=25,key="phone",val="James") #2 second samples, 20 samples per supersample
+all_samples = samples.getAllSamples(Tsub=2,Nsub=5,key="phone",val="Reid",READ_IN=False) #2 second subsamples, 5 per sample
 
 np.random.shuffle(all_samples);
 numTrain = int(round(2*len(all_samples)/3))

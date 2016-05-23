@@ -27,12 +27,12 @@ class Classifier:
 
     def trainLogitBatch2(self,train_samples,test_samples,C=500):
         '''
-        Train a logistic regression that separates a supersample into a batch 
+        Train a logistic regression that separates a supersample into a batch
         of samples. The samples are then used to train a logistic regression as
-        normal. However, predictions are made by breaking the input into 
-        smaller samples and then using this batch of samples to determine the 
+        normal. However, predictions are made by breaking the input into
+        smaller samples and then using this batch of samples to determine the
         final output label.
-        
+
         train_samples = array of supersamples for training
         test_samples  = array of supersamples for testing
         C             = Logistic regularization parameter
@@ -40,22 +40,22 @@ class Classifier:
         n_train = len(train_samples);
         #n_test = len(test_samples);
 
-        samples_per = train_samples[0].N;
+        subsamp_per = train_samples[0].Nsub;
 
-        X_train = np.zeros((samples_per*n_train,self.phi.LEN))
-        Y_train = np.zeros(samples_per*n_train,dtype=np.int8);
+        X_train = np.zeros((subsamp_per*n_train,self.phi.LEN))
+        Y_train = np.zeros(subsamp_per*n_train,dtype=np.int8);
 
         k = 0
-        for super_sample in train_samples:
-            phi_X = self.phi.get_phi(super_sample)
+        for sample in train_samples:
+            phi_X = self.phi.get_phi(sample)
             numSamples,_ = phi_X.shape
             X_train[k:k+numSamples,:] = phi_X
-            Y_train[k:k+numSamples] = super_sample.region
+            Y_train[k:k+numSamples] = sample.region
             k += numSamples
 
         log_reg = linear_model.LogisticRegression(C=C)
         log_reg.fit(X_train,Y_train)
-        
+
         self.predictor = log_reg
 
         train_actual = np.zeros((n_train,1))
@@ -83,7 +83,7 @@ class Classifier:
         '''
         if self.predictor != None:
             raise ValueError("Error: This classifier has already trained a predictor.")
-            
+
         samples_per = int(audio_dur/sample_length)
 
         # Allocate more room then we expect, just in case
@@ -103,7 +103,7 @@ class Classifier:
 
         log_reg = linear_model.LogisticRegression(C=500)
         log_reg.fit(X_train,Y_train)
-        
+
         self.predictor = log_reg
 
         train_actual = np.zeros((len(train_samples),1))
