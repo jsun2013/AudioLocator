@@ -22,9 +22,21 @@ class Classifier:
         return self.phi.get_phi(X)
     def make_prediction(self,X):
         phiX = self.phi.get_phi(X)
-        return self.predictor(phiX)
+        votes = self.predictor.predict(phiX)
+        return stats.mode(votes).mode[0]
 
-    def trainLogitBatch2(self,train_samples,test_samples):
+    def trainLogitBatch2(self,train_samples,test_samples,C=500):
+        '''
+        Train a logistic regression that separates a supersample into a batch 
+        of samples. The samples are then used to train a logistic regression as
+        normal. However, predictions are made by breaking the input into 
+        smaller samples and then using this batch of samples to determine the 
+        final output label.
+        
+        train_samples = array of supersamples for training
+        test_samples  = array of supersamples for testing
+        C             = Logistic regularization parameter
+        '''
         n_train = len(train_samples);
         #n_test = len(test_samples);
 
@@ -41,14 +53,10 @@ class Classifier:
             Y_train[k:k+numSamples] = super_sample.region
             k += numSamples
 
-        log_reg = linear_model.LogisticRegression(C=500)
+        log_reg = linear_model.LogisticRegression(C=C)
         log_reg.fit(X_train,Y_train)
-
-        def logistic_predictor(X):
-            votes = log_reg.predict(X)
-            return stats.mode(votes).mode[0]
-
-        self.predictor = logistic_predictor
+        
+        self.predictor = log_reg
 
         train_actual = np.zeros((n_train,1))
         train_hat = np.zeros((n_train,1))
@@ -73,6 +81,9 @@ class Classifier:
         test_samples    = array of super samples to be tested on
         phi             = feature extractor on a supersample
         '''
+        if self.predictor != None:
+            raise ValueError("Error: This classifier has already trained a predictor.")
+            
         samples_per = int(audio_dur/sample_length)
 
         # Allocate more room then we expect, just in case
@@ -92,14 +103,8 @@ class Classifier:
 
         log_reg = linear_model.LogisticRegression(C=500)
         log_reg.fit(X_train,Y_train)
-
-
-
-        def logistic_predictor(X):
-            votes = log_reg.predict(X)
-            return stats.mode(votes).mode[0]
-
-        self.predictor = logistic_predictor
+        
+        self.predictor = log_reg
 
         train_actual = np.zeros((len(train_samples),1))
         train_hat = np.zeros((len(train_samples),1))
