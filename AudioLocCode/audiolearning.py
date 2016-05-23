@@ -44,17 +44,17 @@ class Classifier:
         n_train = len(train_samples);
         #n_test = len(test_samples);
 
-        samples_per = train_samples[0].N;
+        subsamp_per = train_samples[0].Nsub;
 
-        X_train = np.zeros((samples_per*n_train,self.phi.LEN))
-        Y_train = np.zeros(samples_per*n_train,dtype=np.int8);
+        X_train = np.zeros((subsamp_per*n_train,self.phi.LEN))
+        Y_train = np.zeros(subsamp_per*n_train,dtype=np.int8);
 
         k = 0
-        for super_sample in train_samples:
-            phi_X = self.phi.get_phi(super_sample)
+        for sample in train_samples:
+            phi_X = self.phi.get_phi(sample)
             numSamples,_ = phi_X.shape
             X_train[k:k+numSamples,:] = phi_X
-            Y_train[k:k+numSamples] = super_sample.region
+            Y_train[k:k+numSamples] = sample.region
             k += numSamples
 
         clf = svm.SVC(C=C)
@@ -65,9 +65,9 @@ class Classifier:
         train_actual = np.zeros((n_train,1))
         train_hat = np.zeros((n_train,1))
 
-        for i,super_sample in enumerate(train_samples):
-            train_actual[i] = super_sample.region
-            train_hat[i] = self.make_prediction(super_sample)
+        for i,sample in enumerate(train_samples):
+            train_actual[i] = sample.region
+            train_hat[i] = self.make_prediction(sample)
 
         print("Finished Training Classifier with Training Error:---------------")
         for region in range(7):
@@ -78,7 +78,7 @@ class Classifier:
         totalErr = 1 - float(sum(train_actual == train_hat))/len(train_actual)
         print "---- Total Training Error: %.4f" % totalErr
 
-    def trainLogitBatch2(self,train_samples,test_sampes=None,C=500):
+    def trainLogitBatch2(self,train_samples,test_samples=None,C=500):
         '''
         Deprecated, does  the same as trainLogitBatch
         '''
@@ -101,17 +101,17 @@ class Classifier:
         n_train = len(train_samples);
         #n_test = len(test_samples);
 
-        samples_per = train_samples[0].N;
+        subsamp_per = train_samples[0].Nsub;
 
-        X_train = np.zeros((samples_per*n_train,self.phi.LEN))
-        Y_train = np.zeros(samples_per*n_train,dtype=np.int8);
+        X_train = np.zeros((subsamp_per*n_train,self.phi.LEN))
+        Y_train = np.zeros(subsamp_per*n_train,dtype=np.int8);
 
         k = 0
-        for super_sample in train_samples:
-            phi_X = self.phi.get_phi(super_sample)
+        for sample in train_samples:
+            phi_X = self.phi.get_phi(sample)
             numSamples,_ = phi_X.shape
             X_train[k:k+numSamples,:] = phi_X
-            Y_train[k:k+numSamples] = super_sample.region
+            Y_train[k:k+numSamples] = sample.region
             k += numSamples
 
         log_reg = linear_model.LogisticRegression(C=C)
@@ -122,9 +122,9 @@ class Classifier:
         train_actual = np.zeros((n_train,1))
         train_hat = np.zeros((n_train,1))
 
-        for i,super_sample in enumerate(train_samples):
-            train_actual[i] = super_sample.region
-            train_hat[i] = self.make_prediction(super_sample)
+        for i,sample in enumerate(train_samples):
+            train_actual[i] = sample.region
+            train_hat[i] = self.make_prediction(sample)
 
         print("Finished Training Classifier with Training Error:---------------")
         for region in range(7):
@@ -142,9 +142,9 @@ class Classifier:
         n_test = len(test_samples);
         test_actual = np.zeros((n_test,1))
         test_hat = np.zeros((n_test,1))
-        for (i,isup) in enumerate(test_samples):
-            test_actual[i] = isup.region
-            test_hat[i] = self.make_prediction(isup)
+        for (i,sample) in enumerate(test_samples):
+            test_actual[i] = sample.region
+            test_hat[i] = self.make_prediction(sample)
         
         print("-----------------------------------------------------")
         print("-------------------Testing Error:-------------------")

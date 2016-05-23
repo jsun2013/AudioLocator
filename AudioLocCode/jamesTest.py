@@ -24,12 +24,12 @@ ACF_LAGS = 40
 
 class phi1:
     LEN = 0;
-    def __init__(self,fft_bins,acf_lags):
-        self.LEN = 13
-        self.fft_bins = fft_bins
+    def __init__(self,acf_lags,nceps):
+#        self.LEN = nceps+acf_lags+1
+        self.LEN = nceps
         self.acf_lags = acf_lags
 
-    def get_phi(self,super_sample):
+    def get_phi(self,sample):
         '''
         Takes in a super_sample and returns a feature array. Breaks the super_sample
         down into samples. Each row of the returned value corresponds to a sample
@@ -37,22 +37,20 @@ class phi1:
         '''
 
 #        XSPED = spectral.getSupersampleSPED(super_sample,self.fft_bins,spacing="log")
-        XAcf = np.zeros((super_sample.N,ACF_LAGS+1))
-        XMean = np.zeros((super_sample.N,1))
-        XMFCC = np.zeros((super_sample.N,13))
-        samples = super_sample.readoutSamples();
-        for j,data in enumerate(samples):
-            #XFFT[j,:] = F_all[j,:]
-#            XAcf[j,:] = stattools.acf(data,nlags=self.acf_lags,fft=True)
-#            XMean[j] = np.mean(data)
-            temp = features.mfcc(data,fs=44100)[0]
-            temp[~np.isfinite(temp)] = 0            
-            XMFCC[j,:] = np.mean(temp,0)
+#        XAcf = spectral.getSampleACF(sample,self.acf_lags)
+#        XMean = np.zeros((sample.Nsub,1))
+        XMFCC = spectral.getSampleMFCC(sample)
+#        XAcf = np.zeros((sample.Nsub,self.acf_lags+1))
+#        XMFCC = np.zeros((sample.Nsub,13))
+#        subsamples = sample.getSubsamples()
+#        for j,data in enumerate(subsamples):      
+#            XMFCC[j,:] = spectral.getSignalMFCC(data)
+#            XAcf[j,:] = spectral.getSignalACF(data,self.acf_lags)
 #        return np.hstack((XMFCC,XMean,XAcf))
+#        return np.hstack((XMFCC,XAcf))
         return XMFCC
-
 mt.tic()
-all_samples = samples.getAllSamples(T=2,N=25) #2 second samples, 20 samples per supersample
+all_samples = samples.getAllSamples(Tsub=2,Nsub=5,key="phone",val="Reid",READ_IN=True) #2 second subsamples, 5 per sample
 #all_samples = samples.getAllSamples(T=5,N=10) #2 second samples, 20 samples per supersample
 #  all_samples = samples.getAllSamples(T=2,N=25,key="phone",val="James") #2 second samples, 20 samples per supersample
 
@@ -62,7 +60,7 @@ train_samples = all_samples[:numTrain]
 test_samples = all_samples[numTrain:]
 
 nfft_bins = FFT_BINS;
-myPhi = phi1(nfft_bins,ACF_LAGS);
+myPhi = phi1(ACF_LAGS,13);
 logistic_classifier = audiolearning.Classifier(myPhi);
 logistic_classifier.trainLogitBatch(train_samples,C=300);
 logistic_classifier.testClassifier(test_samples)
@@ -72,25 +70,5 @@ svm_classifier.trainSVMBatch(train_samples,test_samples,C=500)
 svm_classifier.testClassifier(test_samples)
 
 
-
-#n_test = len(test_samples);
-#test_actual = np.zeros((n_test,1))
-#test_hat = np.zeros((n_test,1))
-#for (i,isup) in enumerate(test_samples):
-#    test_actual[i] = isup.region
-#    test_hat[i] = svm_classifier.make_prediction(isup)
-#
-#print("-----------------------------------------------------")
-#print("-------------------Testing Error:-------------------")
-#for region in range(7):
-#    actual = test_actual[test_actual == region]
-#    pred = test_hat[test_actual == region]
-#    if len(actual)==0:
-#        print("  ->No test samples from Region %d"%region)
-#        continue
-#    err = 1 - float(sum(actual == pred))/len(actual)
-#    print "Error for region %d: %.4f" % (region,err)
-#totalErr = 1 - float(sum(test_actual == test_hat))/n_test
-#print "---- Total Testing Error: %.4f" % totalErr
 
 mt.toc()
