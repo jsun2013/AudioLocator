@@ -118,7 +118,7 @@ def getSupersampleFFT(s, N, spec_meth = spectral_method.periodogram,
     return (fax,F);
 
 
-def getAllSPED(sups, N, twin = 5, fwin = 21, nperseg=256, spacing="log"):
+def getAllSPED(sups, N, twin = 3, fwin = 21, nperseg=256, spacing="log"):
     nsup = np.shape(sups)[0];
     M = sups[0].N;
 
