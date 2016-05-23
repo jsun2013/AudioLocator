@@ -49,26 +49,29 @@ class phi1:
 #        return np.hstack((XMFCC,XMean,XAcf))
 #        return np.hstack((XMFCC,XAcf))
         return XMFCC
-mt.tic()
-all_samples = samples.getAllSamples(Tsub=2,Nsub=5,key="phone",val="Reid",READ_IN=True) #2 second subsamples, 5 per sample
-#all_samples = samples.getAllSamples(T=5,N=10) #2 second samples, 20 samples per supersample
-#  all_samples = samples.getAllSamples(T=2,N=25,key="phone",val="James") #2 second samples, 20 samples per supersample
+        
 
-np.random.shuffle(all_samples);
-numTrain = int(round(2*len(all_samples)/3))
-train_samples = all_samples[:numTrain]
-test_samples = all_samples[numTrain:]
-
-nfft_bins = FFT_BINS;
-myPhi = phi1(ACF_LAGS,13);
-logistic_classifier = audiolearning.Classifier(myPhi);
-logistic_classifier.trainLogitBatch(train_samples,C=300);
-logistic_classifier.testClassifier(test_samples)
-
-svm_classifier = audiolearning.Classifier(myPhi)
-svm_classifier.trainSVMBatch(train_samples,test_samples,C=500)
-svm_classifier.testClassifier(test_samples)
-
-
-
-mt.toc()
+if __name__ == "__main__":
+    mt.tic()
+    all_samples = samples.getAllSamples(Tsub=2,Nsub=5,key="phone",val="Reid",READ_IN=True) #2 second subsamples, 5 per sample
+    #all_samples = samples.getAllSamples(T=5,N=10) #2 second samples, 20 samples per supersample
+    #  all_samples = samples.getAllSamples(T=2,N=25,key="phone",val="James") #2 second samples, 20 samples per supersample
+    
+    np.random.shuffle(all_samples);
+    numTrain = int(round(2*len(all_samples)/3))
+    train_samples = all_samples[:numTrain]
+    test_samples = all_samples[numTrain:]
+    
+    nfft_bins = FFT_BINS;
+    myPhi = phi1(ACF_LAGS,13);
+    logistic_classifier = audiolearning.Classifier(myPhi);
+    logistic_classifier.trainLogitBatch(train_samples,C=300);
+    logistic_classifier.testClassifier(test_samples)
+    
+    svm_classifier = audiolearning.Classifier(myPhi)
+    svm_classifier.trainSVMBatch(train_samples,C=500)
+    svm_classifier.testClassifier(test_samples)
+    
+    
+    
+    mt.toc()
