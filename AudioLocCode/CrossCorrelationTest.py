@@ -27,17 +27,18 @@ def phi(super_sample, audio_dur=60, sample_length=10, acf_lags = 40, fft_bins = 
     
     samples_per = int(audio_dur/sample_length)
     XAcf = np.zeros((2*samples_per,acf_lags+1))
-    XFFT = np.zeros((2*samples_per,fft_bins))
+#    XFFT = np.zeros((2*samples_per,fft_bins))
     XMean = np.zeros((2*samples_per,1))
     XVar = np.zeros((2*samples_per,1))
     
     _,F_all = spectral.getSupersampleFFT(super_sample,fft_bins)
     for data,j in zip(super_sample.samples,range(len(super_sample.samples))):
-        XFFT[j,:] = F_all[j,:]
+#        XFFT[j,:] = F_all[j,:]
         XAcf[j,:] = stattools.acf(data,nlags=acf_lags,fft=True)
         XMean[j] = np.mean(data)
         XVar[j] = np.var(data);
-    return np.hstack((XAcf[:j+1,:],XFFT[:j+1,:],XMean[:j+1,:],XVar[:j+1,:]))
+#    return np.hstack((XAcf[:j+1,:],XFFT[:j+1,:],XMean[:j+1,:],XVar[:j+1,:]))
+    return np.hstack((XAcf[:j+1,:],XMean[:j+1,:],XVar[:j+1,:]))
 
 audio_dur = 60 # Seconds
 sample_length = 10 # Seconds

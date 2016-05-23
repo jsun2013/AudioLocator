@@ -4,7 +4,7 @@ Created on Sat May 21 09:58:56 2016
 
 @author: James
 """
-from sklearn import linear_model
+from sklearn import linear_model,svm
 from statsmodels.tsa import stattools
 import numpy as np
 from scipy import stats
@@ -24,6 +24,56 @@ class Classifier:
         phiX = self.phi.get_phi(X)
         votes = self.predictor.predict(phiX)
         return stats.mode(votes).mode[0]
+        
+    def trainSVMBatch(self,train_samples,test_samples,kernel='rbf',C=500):
+        '''
+        Train a kernalized SVM that separates a supersample into a batch 
+        of samples. The samples are then used to train the SVM as
+        normal. However, predictions are made by breaking the input into 
+        smaller samples and then using this batch of samples to determine the 
+        final output label.
+        
+        train_samples = array of supersamples for training
+        test_samples  = array of supersamples for testing
+        kernel        = Kernel function to use
+        C             = Logistic regularization parameter
+        '''
+        n_train = len(train_samples);
+        #n_test = len(test_samples);
+
+        samples_per = train_samples[0].N;
+
+        X_train = np.zeros((samples_per*n_train,self.phi.LEN))
+        Y_train = np.zeros(samples_per*n_train,dtype=np.int8);
+
+        k = 0
+        for super_sample in train_samples:
+            phi_X = self.phi.get_phi(super_sample)
+            numSamples,_ = phi_X.shape
+            X_train[k:k+numSamples,:] = phi_X
+            Y_train[k:k+numSamples] = super_sample.region
+            k += numSamples
+
+        clf = svm.SVC(C=C)
+        clf.fit(X_train,Y_train)
+        
+        self.predictor = clf
+
+        train_actual = np.zeros((n_train,1))
+        train_hat = np.zeros((n_train,1))
+
+        for i,super_sample in enumerate(train_samples):
+            train_actual[i] = super_sample.region
+            train_hat[i] = self.make_prediction(super_sample)
+
+        print("Finished Training Logistic Classifier with Training Error:---------------")
+        for region in range(7):
+            actual = train_actual[train_actual == region]
+            pred = train_hat[train_actual == region]
+            err = 1 - float(sum(actual == pred))/len(actual)
+            print "Error for region %d: %.4f" % (region,err)
+        totalErr = 1 - float(sum(train_actual == train_hat))/len(train_actual)
+        print "---- Total Training Error: %.4f" % totalErr
 
     def trainLogitBatch2(self,train_samples,test_samples,C=500):
         '''
