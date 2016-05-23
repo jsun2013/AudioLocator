@@ -8,6 +8,9 @@ Created on Mon May 16 22:26:19 2016
 import numpy as np
 from scipy import signal
 from numpy import fft
+from statsmodels.tsa import stattools
+from scikits.talkbox import features
+from scipy.stats import binned_statistic
 
 """
 %Example usage:
@@ -213,4 +216,33 @@ def getSupersampleSPED(s, N, twin = 3, fwin = 21, nperseg=256, spacing="log"):
         F; #bp
 
     return F
+
+def getSampleACF(sample, acflags ):
+    acf = np.zeros((sample.Nsub,acflags+1))
+    subsamples = sample.getSubsamples()
+    for j,data in enumerate(subsamples):
+        acf[j,:] = getSignalACF(data,acflags)
+    return acf
+    
+def getSampleMFCC(sample, nceps=13):
+    ceps = np.zeros((sample.Nsub,nceps))
+    subsamples = sample.getSubsamples()
+    for j,data in enumerate(subsamples):
+        temp = features.mfcc(data,fs=sample.waveparms.fs,nceps=nceps)[0]
+        temp[~np.isfinite(temp)] = 0            
+        ceps[j,:] = np.mean(temp,0)
+    return ceps
+    
+def getSignalACF(s,acflags=40):
+    '''
+    Binning causes problems. Seems that some of the bins are Infinite or NaN
+    '''
+    return stattools.acf(s,nlags=acflags,fft=True)
+#    full_acf =  stattools.acf(s,nlags=len(s),fft=True)
+#    return binned_statistic(full_acf,full_acf,bins=acflags+1)[0]
+    
+def getSignalMFCC(s,nceps=13,fs=44100):
+    temp = features.mfcc(s,fs=fs,nceps=nceps)[0]
+    temp[~np.isfinite(temp)] = 0
+    return np.mean(temp,0)
 
