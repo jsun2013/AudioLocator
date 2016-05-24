@@ -152,15 +152,6 @@ def getSupersampleSPED(s, N, twin = 3, fwin = 21, nperseg=256, spacing="log"):
         isped2 = np.zeros((nf,nt));
         isped3 = np.zeros((nf,nt));
 
-        """
-        for jf in range(nf):
-            for jt in range(nt):
-                if ( spec[jf,jt] >= spec[ max(0,jf-h_fwin):min(nf,jf+h_fwin),
-                       max(0,jt-h_twin):min(nt,jt+h_twin) ] ).all():
-                    isped[jf,jt] = 1;
-        """
-
-
         num_fbin = int(np.ceil(nf/h_fwin));
         peaks = np.zeros((num_fbin,nt) );
         for j in range(nt):
@@ -173,28 +164,6 @@ def getSupersampleSPED(s, N, twin = 3, fwin = 21, nperseg=256, spacing="log"):
                     fbin = spec[jfbin*h_fwin:min(nf,(jfbin+1)*h_fwin), j];
                     isped3[jfbin*h_fwin:min(nf,(jfbin+1)*h_fwin),j] = np.round(fbin >=peaks[jfbin,j]);
         isped = isped3;
-        """
-        #Hopefully more efficient?
-        num_fbin = int(np.ceil(nf/h_fwin));
-        peaks = np.zeros((num_fbin,nt) ); peak_inds = np.zeros((num_fbin,nt));
-        for j in range(nt):
-            for jfbin in range( num_fbin ):
-                fbin = spec[jfbin*h_fwin:min(nf,(jfbin+1)*h_fwin), j];
-                peaks[jfbin,j] = np.amax( fbin );
-                peak_inds[jfbin,j] = jfbin*h_fwin + np.argmax( fbin );
-        for j in range(nt):
-            for jpeak in range(num_fbin):
-                f_window = (abs(peak_inds - peak_inds[jpeak,j])<=h_fwin);
-                f_window[:,0:max(0,j-h_twin)] = False; f_window[:,min(nt,j+h_twin):nt] = False
-                f_window[jpeak,j] = False;
-                #t_window = np.full((num_fbin,nt),False,dtype=bool);t_window[:,max(0,j-h_twin):min(nt,j+h_twin+1)] = True;
-                #if (peaks[jpeak,j]>= (peaks[ f_window & t_window]) ).all():
-                if (peaks[jpeak,j]> (peaks[ f_window ]) ).all():
-                    isped2[peak_inds[jpeak,j],j] = 1;
-                    #if peak_inds[jpeak,j] > 0:
-                    #    isped2[peak_inds[jpeak,j],j] = 1;
-        isped = isped2;
-        """
 
         ispedf = np.sum(isped,1);
         #ispedf = ispedf + 1; #Laplace smoothing?
@@ -211,7 +180,7 @@ def getSupersampleSPED(s, N, twin = 3, fwin = 21, nperseg=256, spacing="log"):
             isped_bin = ispedf[(fax>bin_ends[j]) & (fax<=bin_ends[j+1])];
             isped_bin.sort(); isped_bin[:] = isped_bin[::-1];
 
-            F[i,j] = np.sum(isped_bin[0:min(3,np.size(isped_bin))]);
+            F[i,j] = np.sum(isped_bin[0:min(5,np.size(isped_bin))]);
 
         F; #bp
 
@@ -223,16 +192,16 @@ def getSampleACF(sample, acflags ):
     for j,data in enumerate(subsamples):
         acf[j,:] = getSignalACF(data,acflags)
     return acf
-    
+
 def getSampleMFCC(sample, nceps=13):
     ceps = np.zeros((sample.Nsub,nceps))
     subsamples = sample.getSubsamples()
     for j,data in enumerate(subsamples):
         temp = features.mfcc(data,fs=sample.waveparms.fs,nceps=nceps)[0]
-        temp[~np.isfinite(temp)] = 0            
+        temp[~np.isfinite(temp)] = 0
         ceps[j,:] = np.mean(temp,0)
     return ceps
-    
+
 def getSignalACF(s,acflags=40):
     '''
     Binning causes problems. Seems that some of the bins are Infinite or NaN
@@ -240,7 +209,7 @@ def getSignalACF(s,acflags=40):
     return stattools.acf(s,nlags=acflags,fft=True)
 #    full_acf =  stattools.acf(s,nlags=len(s),fft=True)
 #    return binned_statistic(full_acf,full_acf,bins=acflags+1)[0]
-    
+
 def getSignalMFCC(s,nceps=13,fs=44100):
     temp = features.mfcc(s,fs=fs,nceps=nceps)[0]
     temp[~np.isfinite(temp)] = 0
