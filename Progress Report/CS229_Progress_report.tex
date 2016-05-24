@@ -91,7 +91,7 @@ A previous CS229 course project identified landmarks based on visual features \c
 \section{Scope}
 As stated in Section \ref{Intro}, we have limited the number of areas that the system will recognize. Furthermore, we have limited the geographical resolution of labels to named locations encompassing areas such as Rains Graduate Housing. Both of these limitations are in line with how a typical person may use audio cues to identify his or her location. As such, these geographical restrictions in scope are unlikely to be relaxed.
 
-We have also initially limited our scope temporally to data gathered on weekdays between the periods of 9AM to 5PM during the Spring Academic Quarter. Initial results are promising, and we may relax some of these restrictions.
+We have also initially limited our scope temporally to data gathered on weekends in the Spring Academic Quarter. Initial results are promising, and we plan to gather data during the weekdays as well.
 
 \section{System Design}\label{SystemDesign}
 \subsection{Hardware and Software}\label{HwSw}
@@ -168,22 +168,68 @@ These locations represent the route a typical graduate engineering student livin
 
 
 \section{Data Collection}\label{Data}
-\subsection{Format}
-Data is collected using the \texttt{HI-Q MP3 REC (FREE)} application as noted in Section \ref{HwSw}. This application is freely available on the Google Play Store. Monophonic Audio is recorded without preprocessing and postprocessing at a sample rate of 44.1 kHz. 
-\subsection{Training Data}
-Training data is gathered during weekdays in the morning in order
+\subsection{Audio Format}\label{AudioFormat}
+Data is collected using the \texttt{HI-Q MP3 REC (FREE)} application as noted in Section \ref{HwSw}. This application is freely available on the Google Play Store. Monophonic Audio is recorded without preprocessing and postprocessing at a sample rate of 44.1 kHz.
+\subsection{Data Collection}
+Initial training data was over a period of 2 days. Data was gathered at each location an equal number of times. Each data collection event followed the following procedure:
+\begin{enumerate}
+\item Configure \texttt{HI-Q MP3 REC (FREE)} to record audio as in \ref{AudioFormat}.
+\item Hold the Android recording device away from body with no obstructions of the microphone
+\item Stand in a single location throughout the recording
+\item Record for 1 minute
+\item Throw away recording if person recording interferes with the environment in some way (talks to a bystander, causes a bicycle crash, heckles passerby, etc...) 
+\item Split recording into 10-second-long samples
+\end{enumerate}
+In total, we gathered 61 samples per location for a total of 432 samples. Roughly half of these samples were collected after 6pm; the other half were collected between 11am and 4pm.
 
-\section{Methods}
-The goal is to have the system recognize natural geographic aggregates rather than recognize individual fine-grain coordinates. For example, the system will label a data set as belonging to "The Quad" or "Bytes Cafe", similar to how a person would naturally describe an environment. I expect to use supervised learning algorithms to separate data points based on audio and visual features.
-\subsection{Audio Features}
-As audio is potentially the more interesting data type, I have come up with a few basic features to evaluate. These include the following:
+\section{Audio Features}
+We have investigated the use of the following features:
 \begin{itemize}
-\item Frequency Spectrum Bandwidth
-\item Frequency Spectrum Variance
-\item Frequency Spectrum mean
-\item Intensity variance
-\item Mean Intensity
+\item Mean Amplitude in Time Domain
+\item Variance of Amplitude in Time Domain
+\item Fourier Transform
+\item Autocorrelation 
+\item SPED
+\item Mel-frequency cepstral coefficients (MFCCs)
 \end{itemize}
+We binned the Fourier Transform into 40 bins for use as features. We used the first 40 lags in the Autocorrelation of each signal to use as features. The MFCC and SPED features are described in the following subsection.
+
+\subsection{MFCC}
+MFCCs are commonly used to characterize structured audio such as speech and music in the frequency domain, often as an alternative to the Fourier Transform \cite{Chu},\cite{Chu2Env},\cite{guo2003content},\cite{aucouturier2007bag}. Calculating the MFCCs proceeds in the following manner\cite{rabiner1993fundamentals}:
+\begin{enumerate}
+\item Divide the signal into short windows in the time domain
+\item For each windowed signal:
+    \begin{enumerate}
+    \item Take the Fast Fourier Transform (FFT)
+    \item Map powers of the FFT onto the mel scale
+    \item Take the logarithm of the resultant mapping
+    \item Take the discrete cosine transform (DCT) of the log mapping at a certain number of frequencies
+    \item Output the resulting DCT
+    \end{enumerate}
+\end{enumerate} 
+The calculation of MFCCs is available in the \texttt{scikits.talkbox} Python package. We chose to calculate 13 MFCCs over 5 ms windows for each input. This creates 13 MFCCs for each window of the input. We then take the mean over all windows to create 13 MFCC features for a given input.
+\subsection{SPED}
+
+\section{Preliminary Methods}
+We investigate Logistic Regression, SVM with a linear kernel, and SVM with a radial basis kernel function, experimenting with different subsets of features with each algorithm. In reference to the system flow in Section \ref{Signal Flow}, we choose 10-second samples and 2-second subsamples. So, a sample will be input to the system, 5 predictions (1 for each subsample) will be made, and finally the most frequent prediction will be output.  For training, we randomly shuffle the samples and use $2/3$ as training and $1/3$ as testing. To make valid comparisons across different training instances, we reset to a given random number generator seed whenever shuffling the samples.\\
+
+We train each classifier on subsamples. So, for each training sample, we generate 5 training subsamples. However, we calculate training and testing error based on entire samples, using the aforementioned procedure. Some of the results are below:
+\begin{table}[H]
+\centering
+\begin{tabular}{|c|c|c|c|}
+\hline
+\textbf{Classifier} & Features & Train Error & Test Error\\
+\hline
+Logit, $C=300$ & MFCC& 0.3486 & 0.3542\\
+\hline
+SVM $C = 5$ & MFCC & 0.1389 & 0.1944\\
+\hline
+SVM $C = 15$ & MFCC & 0.0910 & 0.1569\\
+\hline
+SVM $C = 195$ & MFCC & 0.0319 & 0.1431\\
+\hline
+\end{tabular}
+\end{table}
 
 % references section
 
