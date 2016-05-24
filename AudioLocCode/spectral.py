@@ -71,10 +71,10 @@ def getSupersampleFFT(s, N, spec_meth = spectral_method.periodogram,
     if N is specified, it will be used over T
     '''
 
-    samples = s.getSubsamples();
+    subsamples = s.getSubsamples();
     fs = s.waveparms.fs;
     #TODO: next power of 2?
-    (M,L) = np.shape(s.samples);
+    (M,L) = subsamples.shape;
 
     if win != None:
         #TODO: add windows support
@@ -83,7 +83,7 @@ def getSupersampleFFT(s, N, spec_meth = spectral_method.periodogram,
     #Run
     F = np.empty([M,N]); #Array for storing feature output, N for each sample, M samples per supersample
     for i in range(M):
-        isample = samples[i,:];
+        isample = subsamples[i,:];
 
         #Use specified method to get a spectrum
         if spec_meth==spectral_method.periodogram:

@@ -158,8 +158,6 @@ In total, we gathered 61 samples per location for a total of 432 samples. Roughl
 \section{Audio Features}
 We have investigated the use of the following features:
 \begin{itemize}
-\item Mean Amplitude in Time Domain
-\item Variance of Amplitude in Time Domain
 \item Fourier Transform
 \item Autocorrelation (ACF)
 \item SPED
@@ -207,11 +205,15 @@ We train each classifier on subsamples. So, for each training sample, we generat
 \centering
 \includegraphics[width=0.45\linewidth]{MFCC_ACF_Err}
 \end{figure}
-From these results, we conclude that of the simple classification algorithms, using MFCC features to train an RBF-kernel SVM with a penalty parameter $C=50$ seems most promising. Note we tested other features as well that due to poor performance have not been plotted here.\\
+From these results, we conclude that the most promising simple classification algorithm is using MFCC features to train an RBF-kernel SVM with a penalty parameter $C=15$, despite the considerable gap between training and testing errors. Surprisingly, adding features in conjunction with MFCC features does not seem to improve performance for any of the simple classifiers we tried.
 
-We saw that the FFT features did not improve upon performance when combined with the ACF features. In retrospect, this somewhat makes sense because the ACF can be calculated directly from the FFT. Somewhat surprisingly, we saw extremely bad performance when using just FFT features. For some reason, all learning algorithms would classify all inputs as Bytes Caf\'e. This may merit further investigation later.
+Note we also tested other features as well that due to poor performance have not been plotted here. We saw that the FFT features did not improve upon performance when combined with the ACF features. In retrospect, this somewhat makes sense because the ACF can be calculated directly from the FFT. Somewhat surprisingly, we saw extremely bad performance when using just FFT features. For some reason, all learning algorithms would classify all inputs as Bytes Caf\'e. This may merit further investigation later.
 
 Also, we saw that the SPED features we calculated worked reasonably well when used in conjunction with a Linear SVM. However, calculation of the SPED features is still rather inefficient, and we need to 
+
+\section{Future Work}
+We plan on gathering more data points at different days of the week in order to evaluate better the generalization of our system. We also plan to investigate ensemble methods in order to combine features with MFCC in a way that improves performance rather than degrades it. If we cannot force our current feature selection to work well together, we may evaluate some of the other features that have been mentioned in the Literature, including time domain features.
+
 
 % references section
 

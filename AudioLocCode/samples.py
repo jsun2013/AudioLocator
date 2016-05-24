@@ -171,14 +171,19 @@ def getAllSamples(Tsub=None,Nsub=None,key=None,val=None,READ_IN=True):
         for jfile in files:
             if os.path.splitext(jfile)[1] == '.wav':
                 jpath = os.path.join(root,jfile);
-
+                skip = 0
                 if key=="phone":
                     fname=os.path.splitext(jfile)[0]
                     with open(csv_path) as csvfile:
                         mycsv = csv.reader(csvfile)
                         for row in mycsv:
                             if row[0]==fname and row[4] != val:
-                                continue;
+                                skip = 1
+                                break
+                            else:
+                                break
+                if skip == 1:
+                    continue
 
                 file_parms = AudioParms();
                 wf = wave.open(jpath,'r')
