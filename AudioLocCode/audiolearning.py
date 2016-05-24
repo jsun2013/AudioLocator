@@ -76,7 +76,7 @@ class Classifier:
                 Y_train[k:k+numSamples] = sample.region
                 k += numSamples
 
-            clf = svm.SVC(C=C)
+            clf = svm.SVC(C=C,kernel=kernel)
             clf.fit(X_train,Y_train)
             
             self.predictor = clf
@@ -98,7 +98,7 @@ class Classifier:
             print "---- Total Training Error: %.4f" % totalErr
         else:
             n_train = len(Y_train)
-            clf = svm.SVC(C=C)
+            clf = svm.SVC(C=C,kernel=kernel)
             clf.fit(X_train,Y_train)
             
             self.predictor = clf
@@ -113,13 +113,14 @@ class Classifier:
                 print "Error for region %d: %.4f" % (region,err)
             totalErr = 1 - float(sum(train_actual == train_hat))/len(train_actual)
             print "---- Total Training Error: %.4f" % totalErr
+        return totalErr
 
     def trainLogitBatch2(self,train_samples,test_samples=None,C=500):
         '''
         Deprecated, does  the same as trainLogitBatch
         '''
         warnings.warn("trainLogitBatch2 does the same as trainLogitBatch. Switch to using that one")
-        self.trainLogitBatch(train_samples,C)
+        return self.trainLogitBatch(train_samples,C)
 
 
     def trainLogitBatch(self,train_samples,X_train=None,Y_train=None,C=500):
@@ -190,6 +191,7 @@ class Classifier:
                 print "Error for region %d: %.4f" % (region,err)
             totalErr = 1 - float(sum(train_actual == train_hat))/len(train_actual)
             print "---- Total Training Error: %.4f" % totalErr
+        return totalErr
 
 
     def testClassifier(self, test_samples,X_test=None,Y_test=None):
@@ -219,4 +221,5 @@ class Classifier:
             print "Error for region %d: %.4f" % (region,err)
         totalErr = 1 - float(sum(test_actual == test_hat))/n_test
         print "---- Total Testing Error: %.4f" % totalErr
+        return totalErr
         
