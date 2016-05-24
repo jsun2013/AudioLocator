@@ -32,6 +32,7 @@
 \usetikzlibrary{shapes.geometric,shapes.arrows,decorations.pathmorphing}
 \usetikzlibrary{matrix,chains,scopes,positioning,arrows,fit}
 \usepackage[margin=1in]{geometry}
+\usepackage{subcaption}
 
 
 % *** GRAPHICS RELATED PACKAGES ***
@@ -119,38 +120,10 @@ The following details the flow of a signal when making a prediction
 \end{enumerate}
 \end{enumerate}
 A graphical illustration of this is below:\\
-
-
-\begin{tikzpicture}
-\matrix (m) [matrix of nodes, 
-    column sep=5mm,
-    row sep=1cm,
-    nodes={draw, % General options for all nodes
-      line width=1pt,
-      anchor=center, 
-      text centered,
-      rounded corners,
-      minimum width=1.5cm, minimum height=8mm
-    }, 
-        % Define styles for some special nodes
-        right iso/.style={isosceles triangle,scale=0.5,sharp corners, anchor=center, xshift=-4mm},
-        left iso/.style={right iso, rotate=180, xshift=-8mm},
-        txt/.style={text width=1.5cm,anchor=center},
-        ellip/.style={ellipse,scale=0.5},
-        empty/.style={draw=none}]
-    {
-      % First row of symbols (mostly empty, only the power meter at the right end)
-        % m-1-1 empty
-      & |[txt]| {Audio}
-      & |[txt]| {Android Phone}
-      & |[txt]| {WAV}\\
-      & % m-1-6 empty
-      & |[txt]| {WAV}
-      & % m-1-7
-        |[txt]| {Sample} 
-      \\
-      };
-\end{tikzpicture}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\linewidth]{pred_flow}
+\end{figure}
 \subsection{Locations}
 The system is trained to recognize the following 7 locations:
 \begin{enumerate}[label=\arabic*.]
@@ -188,7 +161,7 @@ We have investigated the use of the following features:
 \item Mean Amplitude in Time Domain
 \item Variance of Amplitude in Time Domain
 \item Fourier Transform
-\item Autocorrelation 
+\item Autocorrelation (ACF)
 \item SPED
 \item Mel-frequency cepstral coefficients (MFCCs)
 \end{itemize}
@@ -212,26 +185,35 @@ The calculation of MFCCs is available in the \texttt{scikits.talkbox} Python pac
 SPED, Subband Peak Energy Detection, is a method of finding consistent sources of energy (in frequency) over time. First, a spectrogram is generated using time-windowed FFTs on the time-domain signal. The result is the energy of the signal as a function of both time and frequency. SPED then finds the peaks across frequency as defined by some size of window. A local maximum is marked '1', and all other elements are zero. Finally, this matrix is summed across time to give a rough histogram of local maxima as a function of frequency. \\
 The idea behind this method is to find low-SNR energy sources that produce a coherent signal. For example, a motor or fan may produce a quiet but consistent sum of tones. In an FFT, this may or may not be visible. However, it will likely result in local maxima over time. Since all maxima are weighted equally, SPED seeks to expose all consistent frequencies regardless of their power. 
 
-\section{Preliminary Methods}
-We investigate Logistic Regression, SVM with a linear kernel, and SVM with a radial basis kernel function, experimenting with different subsets of features with each algorithm. In reference to the system flow in Section \ref{Signal Flow}, we choose 10-second samples and 2-second subsamples. So, a sample will be input to the system, 5 predictions (1 for each subsample) will be made, and finally the most frequent prediction will be output.  For training, we randomly shuffle the samples and use $2/3$ as training and $1/3$ as testing. To make valid comparisons across different training instances, we reset to a given random number generator seed whenever shuffling the samples.\\
-
-We train each classifier on subsamples. So, for each training sample, we generate 5 training subsamples. However, we calculate training and testing error based on entire samples, using the aforementioned procedure. Some of the results are below:
-\begin{table}[H]
+\section{Preliminary Methods and Results}
+We investigate Logistic Regression, SVM with a linear kernel, and SVM with a radial basis kernel function, experimenting with different subsets of features with each algorithm. In reference to the system flow in Section \ref{Signal Flow}, we choose 10-second samples and 2-second subsamples. So, a sample will be input to the system, 5 predictions (1 for each subsample) will be made, and finally the most frequent prediction will be output.  For training, we randomly shuffle the samples and use $2/3$ as training and $1/3$ as testing. To make valid comparisons across different training instances, we reset to a given random number generator seed whenever shuffling the samples. The training flow diagram is similar to the prediction flow diagram:
+\begin{figure}[H]
 \centering
-\begin{tabular}{|c|c|c|c|}
-\hline
-\textbf{Classifier} & Features & Train Error & Test Error\\
-\hline
-Logit, $C=300$ & MFCC& 0.3486 & 0.3542\\
-\hline
-SVM $C = 5$ & MFCC & 0.1389 & 0.1944\\
-\hline
-SVM $C = 15$ & MFCC & 0.0910 & 0.1569\\
-\hline
-SVM $C = 195$ & MFCC & 0.0319 & 0.1431\\
-\hline
-\end{tabular}
-\end{table}
+\includegraphics[width=0.9\linewidth]{train_flow}
+\end{figure}
+
+We train each classifier on subsamples. So, for each training sample, we generate 5 training subsamples. However, we calculate training and testing error based on entire samples, using the aforementioned procedure. Some of the results are below with different error penalty terms $C$:
+\begin{figure}[H]
+\centering
+\begin{subfigure}{0.5\linewidth}
+\centering
+\includegraphics[width=0.9\linewidth]{MFCC_Err}
+\end{subfigure}\hfill
+\begin{subfigure}{0.5\linewidth}
+\centering
+\includegraphics[width=0.9\linewidth]{ACF_Err}
+\end{subfigure}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.45\linewidth]{MFCC_ACF_Err}
+\end{figure}
+From these results, we conclude that of the simple classification algorithms, using MFCC features to train an RBF-kernel SVM with a penalty parameter $C=50$ seems most promising. Note we tested other features as well that due to poor performance have not been plotted here.\\
+
+We saw that the FFT features did not improve upon performance when combined with the ACF features. In retrospect, this somewhat makes sense because the ACF can be calculated directly from the FFT. Somewhat surprisingly, we saw extremely bad performance when using just FFT features. For some reason, all learning algorithms would classify all inputs as Bytes Caf\'e. This may merit further investigation later.
+
+Also, we saw that the SPED features we calculated worked reasonably well when used in conjunction with a Linear SVM. However, calculation of the SPED features is still rather inefficient, and we need to 
 
 % references section
 
