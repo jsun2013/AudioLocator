@@ -27,15 +27,15 @@ class Classifier:
         phiX = self.phi.get_phi(X)
         votes = self.predictor.predict(phiX)
         return stats.mode(votes).mode[0]
-        
-    def trainSVMBatch(self,train_samples,kernel='rbf',C=500):
+
+    def trainSVMBatch(self,train_samples,kernel='rbf',C=500,gamma='auto'):
         '''
-        Train a kernalized SVM that separates a supersample into a batch 
+        Train a kernalized SVM that separates a supersample into a batch
         of samples. The samples are then used to train the SVM as
-        normal. However, predictions are made by breaking the input into 
-        smaller samples and then using this batch of samples to determine the 
+        normal. However, predictions are made by breaking the input into
+        smaller samples and then using this batch of samples to determine the
         final output label.
-        
+
         train_samples = array of supersamples for training
         test_samples  = array of supersamples for testing
         kernel        = Kernel function to use
@@ -50,20 +50,30 @@ class Classifier:
         Y_train = np.zeros(subsamp_per*n_train,dtype=np.int8);
 
         k = 0
-        for sample in train_samples:
+        print("Running feature extraction...")
+        nupdate = int(n_train/10);
+        for (i,sample) in enumerate(train_samples):
+            if i%nupdate==0:
+                print("%d%%..."%((100*i)/n_train));
             phi_X = self.phi.get_phi(sample)
             numSamples,_ = phi_X.shape
             X_train[k:k+numSamples,:] = phi_X
             Y_train[k:k+numSamples] = sample.region
             k += numSamples
 
-        clf = svm.SVC(C=C)
+        print("Finished feature extraction. Running fitting...");
+        if kernel=='rbf':
+            clf = svm.SVC(C=C,gamma=gamma)
+        elif kernel=='linear':
+            clf = svm.LinearSVC(C=C,loss='hinge')
+
         clf.fit(X_train,Y_train)
-        
+
         self.predictor = clf
 
         train_actual = np.zeros((n_train,1))
         train_hat = np.zeros((n_train,1))
+        print("Making predictions...");
 
         for i,sample in enumerate(train_samples):
             train_actual[i] = sample.region
@@ -88,12 +98,12 @@ class Classifier:
 
     def trainLogitBatch(self,train_samples,C=500):
         '''
-        Train a logistic regression that separates a supersample into a batch 
+        Train a logistic regression that separates a supersample into a batch
         of samples. The samples are then used to train a logistic regression as
-        normal. However, predictions are made by breaking the input into 
-        smaller samples and then using this batch of samples to determine the 
+        normal. However, predictions are made by breaking the input into
+        smaller samples and then using this batch of samples to determine the
         final output label.
-        
+
         train_samples = array of supersamples for training
         test_samples  = array of supersamples for testing
         C             = Logistic regularization parameter
@@ -116,7 +126,7 @@ class Classifier:
 
         log_reg = linear_model.LogisticRegression(C=C)
         log_reg.fit(X_train,Y_train)
-        
+
         self.predictor = log_reg
 
         train_actual = np.zeros((n_train,1))
@@ -145,7 +155,7 @@ class Classifier:
         for (i,sample) in enumerate(test_samples):
             test_actual[i] = sample.region
             test_hat[i] = self.make_prediction(sample)
-        
+
         print("-----------------------------------------------------")
         print("-------------------Testing Error:-------------------")
         for region in range(7):
@@ -158,4 +168,4 @@ class Classifier:
             print "Error for region %d: %.4f" % (region,err)
         totalErr = 1 - float(sum(test_actual == test_hat))/n_test
         print "---- Total Testing Error: %.4f" % totalErr
-        
+

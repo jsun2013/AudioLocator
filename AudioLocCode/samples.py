@@ -51,7 +51,7 @@ class Sample:
     attrs = {};
     start_index = 0;
 
-    def __init__(self,path, Lsub, Nsub, wp=None, start_index=None, get_attrs=False):
+    def __init__(self,path, Lsub, Nsub, wp=None, start_index=None, get_attrs=False, Tsub = None):
         '''
         Pass in the path to the containing file.
         To specify that this sample is only part of the whole file, pass in 'wp', a AudioParms() stuct
@@ -59,15 +59,18 @@ class Sample:
         get_attrs = True: Read from metadata.csv for more information
         '''
         self.path = path;
-        self.Lsub = Lsub;
-        self.Nsub = Nsub;
 
         if wp!=None:
             self.waveparms = wp;
-            self.L = wp.L;
         else:
             self.read_parms(); #Read them in if not provided
-            self.L = wp.L;
+        self.L = self.waveparms.L;
+
+        #Override if time is requested instea of length
+        if Tsub != None:
+            Lsub = Tsub*self.waveparms.fs;
+        self.Lsub = Lsub;
+        self.Nsub = Nsub;
 
         if start_index!=None:
             self.start_index = start_index; #Start index into file
@@ -103,13 +106,13 @@ class Sample:
     def read_parms(self):
         wf = wave.open(self.path,'r');
         self.waveparms = AudioParms();
-        self.waveparms.fs = self.wf.getframerate();
-        self.waveparms.nchannels = self.wf.getnchannels();
-        self.waveparms.sampwidth = self.wf.getsampwidth(); #Bytes
-        self.waveparms.L = self.wf.getnframes();
+        self.waveparms.fs = wf.getframerate();
+        self.waveparms.nchannels = wf.getnchannels();
+        self.waveparms.sampwidth = wf.getsampwidth(); #Bytes
+        self.waveparms.L = wf.getnframes();
         wf.close();
 
-    def getSubsamples(self):
+    def getSubsamples(self,j=None):
         #Return data as an array of subsamples
         if self.data_loaded:
             samp_data = np.empty((self.Nsub,self.Lsub));
@@ -124,8 +127,11 @@ class Sample:
                 else:
                     this_sub = data[self.start_index + isub*self.Lsub: self.start_index + (isub+1)*self.Lsub]
                 samp_data[isub,:] = this_sub/(2**(self.waveparms.sampwidth*8-1));
+        if j==None:
+            return samp_data
+        else:
+            return samp_data[j,:];
 
-        return samp_data
     def getData(self):
         #Return all data in this sample
         if self.data_loaded:
@@ -139,31 +145,15 @@ class Sample:
             data = data/(2**(self.waveparms.sampwidth*8-1));
             return data;
 
-"""
-def getAllSamples(T=None,N=None,key=None,val=None):
-    samples = [];
-    i=0;
-    for root, dirs, files in os.walk(RECORD_DIR):
-        for jfile in files:
-            if os.path.splitext(jfile)[1] == '.wav':
-                this_sample = Supersample(os.path.join(root,jfile));
-                if key!=None:
-                    #Put a key here for getting only certain data
-                    this_sample.get_attrs();
-                    if this_sample.attrs[key] == val:
-                        samples.append(this_sample);
-                        #Add only if our key/val match
-                        if T!=None:
-                            samples[i].gather_samples(T,N);
-                        i+=1;
-                else:
-                    samples.append(this_sample);
-                    if T!=None:
-                        samples[i].gather_samples(T,N);
-                    i+=1;
-    print "Imported %i Supersamples"%i
-    return samples;
-"""
+    def readinData(self):
+        data = np.array(wavfile.read(self.jpath)[1],dtype=float);
+        if self.waveparms.nchannels == 2:
+            data = data[self.start_index: self.start_index + self.L,0];
+        else:
+            data = data[self.start_index: self.start_index + self.L];
+        self.data = data/(2**(self.waveparms.sampwidth*8-1));
+        self.data_loaded=1;
+
 def getAllSamples(Tsub=None,Nsub=None,key=None,val=None,READ_IN=True):
     samples = [];
     i=0;
@@ -176,10 +166,13 @@ def getAllSamples(Tsub=None,Nsub=None,key=None,val=None,READ_IN=True):
                     fname=os.path.splitext(jfile)[0]
                     with open(csv_path) as csvfile:
                         mycsv = csv.reader(csvfile)
+                        skip=0;
                         for row in mycsv:
                             if row[0]==fname and row[4] != val:
-                                continue;
-
+                                skip=1;
+                                break;
+                        if skip==1:
+                            continue;
                 file_parms = AudioParms();
                 wf = wave.open(jpath,'r')
                 file_parms.fs = wf.getframerate();
@@ -223,6 +216,7 @@ def findSamples(key,val):
     #TODO
     pass
 
-#wavefile = r'C:\Users\ReidW\Google Drive\Stanford\CS229\AudioLocator\Recordings\Arrillaga\recording-20160515-185508.wav'
-#mysamp = Supersample(wavefile)
-#mysamp.get_attrs()
+class DataPhi:
+    X = [];
+    Y = [];
+
