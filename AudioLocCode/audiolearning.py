@@ -31,18 +31,46 @@ class Classifier:
 
         X = np.zeros((subsamp_per*n_train,self.phi.LEN))
         Y= np.zeros(subsamp_per*n_train,dtype=np.int8);
-        for sample in samples:
+        num_subs = np.zeros(n_train,dtype=np.int8)
+        for i,sample in enumerate(samples):
             phi_X = self.phi.get_phi(sample)
             numSamples,_ = phi_X.shape
             X[k:k+numSamples,:] = phi_X
             Y[k:k+numSamples] = sample.region
+            num_subs[i] = numSamples
             k += numSamples
-        return (X,Y)
+        return (X,Y,num_subs)
     def make_prediction(self,X):
         phiX = self.phi.get_phi(X)
         votes = self.predictor.predict(phiX)
         return stats.mode(votes).mode[0]
-    def trainSVMBatch(self,train_samples,X_train=None,Y_train=None,kernel='rbf',C=500,gamma='auto'):
+    def make_batch_prediction(self,phi_x,num_subs):
+        '''
+        phi_x is a matrix of feature vectors of subsamples
+        num_subs is a vector of counts for each sample. Thus, if num_subs[0] = 4,
+            then phi_x[0:4,:] corresponds to sample 1
+        Typical usage:
+            (X,Y,num_subs) = extractor.extract_features(s)
+            m = len(num_subs)
+            hat = self.make_batch_prediction(X,num_subs)
+            actual = np.zeros(m)
+            k = 0
+            for i,nsub in enumerate(num_subs):
+                actual[i] = Y_test[k];
+                k+=nsub
+        '''
+        k = 0
+        hat = np.zeros(len(num_subs))
+        sub_hat = self.predictor.predict(phi_x)
+        for i,nsub in enumerate(num_subs):
+            votes = sub_hat[k:k+nsub]
+            hat[i] = stats.mode(votes).mode[0]
+            k += nsub
+        return hat
+        
+    def make_phi_prediction(self,phi_x):
+        return self.predictor.predict(phi_x)
+    def trainSVMBatch(self,train_samples,X_train=None,Y_train=None,num_subs=None,kernel='rbf',C=500,gamma='auto'):
         '''
         Train a kernalized SVM that separates a supersample into a batch
         of samples. The samples are then used to train the SVM as
@@ -56,7 +84,7 @@ class Classifier:
         C             = Logistic regularization parameter
         '''
 
-        if X_train is None and Y_train is None:
+        if X_train is None or Y_train is None or num_subs is None:
             n_train = len(train_samples);
 
             subsamp_per = train_samples[0].Nsub;
@@ -102,7 +130,7 @@ class Classifier:
             totalErr = 1 - float(sum(train_actual == train_hat))/len(train_actual)
             print "---- Total Training Error: %.4f" % totalErr
         else:
-            n_train = len(Y_train)
+            n_train = len(num_subs)
             if kernel=='rbf':
                 clf = svm.SVC(kernel=kernel,C=C,gamma=gamma)
             elif kernel=='linear':
@@ -110,8 +138,13 @@ class Classifier:
             clf.fit(X_train,Y_train)
 
             self.predictor = clf
-            train_actual = Y_train
-            train_hat = self.make_batch_prediction(X_train)
+
+            train_actual = np.zeros(n_train)
+            train_hat = self.make_batch_prediction(X_train,num_subs)    
+            k = 0
+            for i,nsub in enumerate(num_subs):
+                train_actual[i] = Y_train[k];
+                k+=nsub    
 
             print("Finished Training Classifier with Training Error:---------------")
             for region in range(7):
@@ -131,7 +164,7 @@ class Classifier:
         return self.trainLogitBatch(train_samples,C)
 
 
-    def trainLogitBatch(self,train_samples,X_train=None,Y_train=None,C=500):
+    def trainLogitBatch(self,train_samples,X_train=None,Y_train=None,num_subs=None,C=500):
         '''
         Train a logistic regression that separates a supersample into a batch
         of samples. The samples are then used to train a logistic regression as
@@ -144,7 +177,7 @@ class Classifier:
         C             = Logistic regularization parameter
         '''
 
-        if X_train is None and Y_train is None:
+        if X_train is None or Y_train is None or num_subs is None:
             n_train = len(train_samples);
 
             subsamp_per = train_samples[0].Nsub;
@@ -181,14 +214,19 @@ class Classifier:
             totalErr = 1 - float(sum(train_actual == train_hat))/len(train_actual)
             print "---- Total Training Error: %.4f" % totalErr
         else:
-            n_train = len(Y_train)
+            n_train = len(num_subs)
             log_reg = linear_model.LogisticRegression(C=C)
             log_reg.fit(X_train,Y_train)
 
             self.predictor = log_reg
 
-            train_actual = Y_train
-            train_hat = self.make_batch_prediction(X_train)
+            train_actual = np.zeros(n_train)
+            train_hat = self.make_batch_prediction(X_train,num_subs)    
+            k = 0
+            for i,nsub in enumerate(num_subs):
+                train_actual[i] = Y_train[k];
+                k+=nsub   
+            
 
             print("Finished Training Classifier with Training Error:---------------")
             for region in range(7):
@@ -201,10 +239,10 @@ class Classifier:
         return totalErr
 
 
-    def testClassifier(self, test_samples,X_test=None,Y_test=None):
+    def testClassifier(self, test_samples,X_test=None,Y_test=None,num_subs=None):
         if self.predictor == None:
             raise ValueError("Error: This classifier has not been trained yet.")
-        if X_test is None and Y_test is None:
+        if X_test is None or Y_test is None or num_subs is None:
             n_test = len(test_samples);
             test_actual = np.zeros((n_test,1))
             test_hat = np.zeros((n_test,1))
@@ -212,9 +250,14 @@ class Classifier:
                 test_actual[i] = sample.region
                 test_hat[i] = self.make_prediction(sample)
         else:
-            n_test = len(Y_test)
-            test_actual = Y_test
-            test_hat = self.make_batch_prediction(X_test)
+            n_test = len(num_subs)
+            test_actual = np.zeros(n_test)
+            test_hat = self.make_batch_prediction(X_test,num_subs)
+            k = 0
+            for i,nsub in enumerate(num_subs):
+                test_actual[i] = Y_test[k];
+                k+=nsub
+                
 
         print("-----------------------------------------------------")
         print("-------------------Testing Error:-------------------")
