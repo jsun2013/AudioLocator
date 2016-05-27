@@ -198,10 +198,10 @@ if __name__ == "__main__":
     test_samples = all_samples[numTrain:]
     
     nfft_bins = FFT_BINS;
-    myPhi2 = phi3(ACF_LAGS);
+    myPhi2 = phi1(ACF_LAGS,13);
     extractor = audiolearning.Classifier(myPhi2)
-    (X_train,Y_train) = extractor.extract_features(train_samples)   
-    (X_test,Y_test) = extractor.extract_features(test_samples)
+    (X_train,Y_train,num_sub_train) = extractor.extract_features(train_samples)   
+    (X_test,Y_test,num_sub_test) = extractor.extract_features(test_samples)
     
     
     
@@ -215,8 +215,8 @@ if __name__ == "__main__":
     for i,C in enumerate(C_range):        
         logistic_classifier = audiolearning.Classifier(myPhi2);  
         
-        logit_train[i] = logistic_classifier.trainLogitBatch(train_samples=None,X_train=X_train,Y_train=Y_train,C=C);
-        logit_test[i] = logistic_classifier.testClassifier(test_samples=None,X_test=X_test,Y_test=Y_test)
+        logit_train[i] = logistic_classifier.trainLogitBatch(train_samples=None,X_train=X_train,Y_train=Y_train,num_subs=num_sub_train,C=C);
+        logit_test[i] = logistic_classifier.testClassifier(test_samples=None,X_test=X_test,Y_test=Y_test,num_subs=num_sub_test)
         if logit_test[i] < best_err_logit:
             best_err_logit = logit_test[i]
             best_C_logit = C
@@ -230,8 +230,8 @@ if __name__ == "__main__":
         print "SVM with C = %d" % C
         
         svm_classifier = audiolearning.Classifier(myPhi2)
-        svm_train[i] = svm_classifier.trainSVMBatch(train_samples=None,X_train=X_train,Y_train=Y_train,C=C)
-        svm_test[i] = svm_classifier.testClassifier(test_samples=None,X_test=X_test,Y_test=Y_test)
+        svm_train[i] = svm_classifier.trainSVMBatch(train_samples=None,X_train=X_train,Y_train=Y_train,num_subs=num_sub_train,C=C)
+        svm_test[i] = svm_classifier.testClassifier(test_samples=None,X_test=X_test,Y_test=Y_test,num_subs=num_sub_test)
         if svm_test[i] < best_err_svm:
             best_err_svm = svm_test[i]
             best_C_svm = C
@@ -245,8 +245,8 @@ if __name__ == "__main__":
         print "SVM with C = %d" % C
         
         lin_svm_classifier = audiolearning.Classifier(myPhi2)
-        lin_svm_train[i] = lin_svm_classifier.trainSVMBatch(train_samples=None,X_train=X_train,Y_train=Y_train,kernel='linear',C=C)
-        lin_svm_test[i] = lin_svm_classifier.testClassifier(test_samples=None,X_test=X_test,Y_test=Y_test)
+        lin_svm_train[i] = lin_svm_classifier.trainSVMBatch(train_samples=None,X_train=X_train,Y_train=Y_train,kernel='linear',num_subs=num_sub_train,C=C)
+        lin_svm_test[i] = lin_svm_classifier.testClassifier(test_samples=None,X_test=X_test,Y_test=Y_test,num_subs=num_sub_test)
         if lin_svm_test[i] < best_err_svm:
             best_err_lsvm = lin_svm_test[i]
             best_C_svm = C

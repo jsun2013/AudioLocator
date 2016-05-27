@@ -31,18 +31,23 @@ class Classifier:
 
         X = np.zeros((subsamp_per*n_train,self.phi.LEN))
         Y= np.zeros(subsamp_per*n_train,dtype=np.int8);
-        for sample in samples:
+        num_subs = np.zeros(n_train,dtype=np.int8)
+        for i,sample in enumerate(samples):
             phi_X = self.phi.get_phi(sample)
             numSamples,_ = phi_X.shape
             X[k:k+numSamples,:] = phi_X
             Y[k:k+numSamples] = sample.region
+            num_subs[i] = numSamples
             k += numSamples
-        return (X,Y)
+        return (X,Y,num_subs)
     def make_prediction(self,X):
         phiX = self.phi.get_phi(X)
         votes = self.predictor.predict(phiX)
         return stats.mode(votes).mode[0]
-    def trainSVMBatch(self,train_samples,X_train=None,Y_train=None,kernel='rbf',C=500,gamma='auto'):
+        
+    def make_phi_prediction(self,phi_x):
+        return self.predictor.predict(phi_x)
+    def trainSVMBatch(self,train_samples,X_train=None,Y_train=None,num_subs=None,kernel='rbf',C=500,gamma='auto'):
         '''
         Train a kernalized SVM that separates a supersample into a batch
         of samples. The samples are then used to train the SVM as
@@ -56,7 +61,7 @@ class Classifier:
         C             = Logistic regularization parameter
         '''
 
-        if X_train is None and Y_train is None:
+        if X_train is None or Y_train is None or num_subs is None:
             n_train = len(train_samples);
 
             subsamp_per = train_samples[0].Nsub;
@@ -102,7 +107,7 @@ class Classifier:
             totalErr = 1 - float(sum(train_actual == train_hat))/len(train_actual)
             print "---- Total Training Error: %.4f" % totalErr
         else:
-            n_train = len(Y_train)
+            n_train = len(num_subs)
             if kernel=='rbf':
                 clf = svm.SVC(kernel=kernel,C=C,gamma=gamma)
             elif kernel=='linear':
@@ -110,8 +115,16 @@ class Classifier:
             clf.fit(X_train,Y_train)
 
             self.predictor = clf
-            train_actual = Y_train
-            train_hat = self.make_batch_prediction(X_train)
+
+            train_actual = np.zeros(n_train)
+            train_hat = np.zeros(n_train)
+            sub_hat = self.make_phi_prediction(X_train)
+            k = 0
+            for i,nsub in enumerate(num_subs):
+                votes = sub_hat[k:k+nsub]
+                train_hat[i] = stats.mode(votes).mode[0]
+                train_actual[i] = Y_train[k]
+                k += nsub   
 
             print("Finished Training Classifier with Training Error:---------------")
             for region in range(7):
@@ -131,7 +144,7 @@ class Classifier:
         return self.trainLogitBatch(train_samples,C)
 
 
-    def trainLogitBatch(self,train_samples,X_train=None,Y_train=None,C=500):
+    def trainLogitBatch(self,train_samples,X_train=None,Y_train=None,num_subs=None,C=500):
         '''
         Train a logistic regression that separates a supersample into a batch
         of samples. The samples are then used to train a logistic regression as
@@ -144,7 +157,7 @@ class Classifier:
         C             = Logistic regularization parameter
         '''
 
-        if X_train is None and Y_train is None:
+        if X_train is None or Y_train is None or num_subs is None:
             n_train = len(train_samples);
 
             subsamp_per = train_samples[0].Nsub;
@@ -181,14 +194,22 @@ class Classifier:
             totalErr = 1 - float(sum(train_actual == train_hat))/len(train_actual)
             print "---- Total Training Error: %.4f" % totalErr
         else:
-            n_train = len(Y_train)
+            n_train = len(num_subs)
             log_reg = linear_model.LogisticRegression(C=C)
             log_reg.fit(X_train,Y_train)
 
             self.predictor = log_reg
 
-            train_actual = Y_train
-            train_hat = self.make_batch_prediction(X_train)
+            train_actual = np.zeros(n_train)
+            train_hat = np.zeros(n_train)
+            sub_hat = self.make_phi_prediction(X_train)
+            k = 0
+            for i,nsub in enumerate(num_subs):
+                votes = sub_hat[k:k+nsub]
+                train_hat[i] = stats.mode(votes).mode[0]
+                train_actual[i] = Y_train[k]
+                k += nsub            
+            
 
             print("Finished Training Classifier with Training Error:---------------")
             for region in range(7):
@@ -201,10 +222,10 @@ class Classifier:
         return totalErr
 
 
-    def testClassifier(self, test_samples,X_test=None,Y_test=None):
+    def testClassifier(self, test_samples,X_test=None,Y_test=None,num_subs=None):
         if self.predictor == None:
             raise ValueError("Error: This classifier has not been trained yet.")
-        if X_test is None and Y_test is None:
+        if X_test is None or Y_test is None or num_subs is None:
             n_test = len(test_samples);
             test_actual = np.zeros((n_test,1))
             test_hat = np.zeros((n_test,1))
@@ -212,9 +233,17 @@ class Classifier:
                 test_actual[i] = sample.region
                 test_hat[i] = self.make_prediction(sample)
         else:
-            n_test = len(Y_test)
-            test_actual = Y_test
-            test_hat = self.make_batch_prediction(X_test)
+            n_test = len(num_subs)
+            test_actual = np.zeros(n_test)
+            test_hat = np.zeros(n_test)
+            sub_hat = self.make_phi_prediction(X_test)
+            k = 0
+            for i,nsub in enumerate(num_subs):
+                votes = sub_hat[k:k+nsub]
+                test_hat[i] = stats.mode(votes).mode[0]
+                test_actual[i] = Y_test[k]
+                k += nsub
+                
 
         print("-----------------------------------------------------")
         print("-------------------Testing Error:-------------------")
