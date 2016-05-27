@@ -44,6 +44,29 @@ class Classifier:
         phiX = self.phi.get_phi(X)
         votes = self.predictor.predict(phiX)
         return stats.mode(votes).mode[0]
+    def make_batch_prediction(self,phi_x,num_subs):
+        '''
+        phi_x is a matrix of feature vectors of subsamples
+        num_subs is a vector of counts for each sample. Thus, if num_subs[0] = 4,
+            then phi_x[0:4,:] corresponds to sample 1
+        Typical usage:
+            (X,Y,num_subs) = extractor.extract_features(s)
+            m = len(num_subs)
+            hat = self.make_batch_prediction(X,num_subs)
+            actual = np.zeros(m)
+            k = 0
+            for i,nsub in enumerate(num_subs):
+                actual[i] = Y_test[k];
+                k+=nsub
+        '''
+        k = 0
+        hat = np.zeros(len(num_subs))
+        sub_hat = self.predictor.predict(phi_x)
+        for i,nsub in enumerate(num_subs):
+            votes = sub_hat[k:k+nsub]
+            hat[i] = stats.mode(votes).mode[0]
+            k += nsub
+        return hat
         
     def make_phi_prediction(self,phi_x):
         return self.predictor.predict(phi_x)
@@ -117,14 +140,11 @@ class Classifier:
             self.predictor = clf
 
             train_actual = np.zeros(n_train)
-            train_hat = np.zeros(n_train)
-            sub_hat = self.make_phi_prediction(X_train)
+            train_hat = self.make_batch_prediction(X_train,num_subs)    
             k = 0
             for i,nsub in enumerate(num_subs):
-                votes = sub_hat[k:k+nsub]
-                train_hat[i] = stats.mode(votes).mode[0]
-                train_actual[i] = Y_train[k]
-                k += nsub   
+                train_actual[i] = Y_train[k];
+                k+=nsub    
 
             print("Finished Training Classifier with Training Error:---------------")
             for region in range(7):
@@ -201,14 +221,11 @@ class Classifier:
             self.predictor = log_reg
 
             train_actual = np.zeros(n_train)
-            train_hat = np.zeros(n_train)
-            sub_hat = self.make_phi_prediction(X_train)
+            train_hat = self.make_batch_prediction(X_train,num_subs)    
             k = 0
             for i,nsub in enumerate(num_subs):
-                votes = sub_hat[k:k+nsub]
-                train_hat[i] = stats.mode(votes).mode[0]
-                train_actual[i] = Y_train[k]
-                k += nsub            
+                train_actual[i] = Y_train[k];
+                k+=nsub   
             
 
             print("Finished Training Classifier with Training Error:---------------")
@@ -235,14 +252,11 @@ class Classifier:
         else:
             n_test = len(num_subs)
             test_actual = np.zeros(n_test)
-            test_hat = np.zeros(n_test)
-            sub_hat = self.make_phi_prediction(X_test)
+            test_hat = self.make_batch_prediction(X_test,num_subs)
             k = 0
             for i,nsub in enumerate(num_subs):
-                votes = sub_hat[k:k+nsub]
-                test_hat[i] = stats.mode(votes).mode[0]
-                test_actual[i] = Y_test[k]
-                k += nsub
+                test_actual[i] = Y_test[k];
+                k+=nsub
                 
 
         print("-----------------------------------------------------")
