@@ -23,23 +23,32 @@ class Classifier:
     def isTrained(self):
         return self.predictor == None
     def extract_features(self,samples):
-        k = 0
+        #k = 0
         n_train = len(samples);
         #n_test = len(test_samples);
 
         subsamp_per = samples[0].Nsub;
 
-        X = np.zeros((subsamp_per*n_train,self.phi.LEN))
-        Y= np.zeros(subsamp_per*n_train,dtype=np.int8);
-        num_subs = np.zeros(n_train,dtype=np.int8)
+        X = np.zeros((n_train,subsamp_per,self.phi.LEN));
+        #Y= np.zeros(n_train,subsamp_per,dtype=np.int8);
+        Y= np.zeros(n_train,dtype=np.int8);
+
+        #X = np.zeros((subsamp_per*n_train,self.phi.LEN))
+        #Y= np.zeros(subsamp_per*n_train,dtype=np.int8);
+        #num_subs = np.zeros(n_train,dtype=np.int8)
+        print("Running feature extraction...")
+        nupdate = int(n_train/10);
         for i,sample in enumerate(samples):
             phi_X = self.phi.get_phi(sample)
-            numSamples,_ = phi_X.shape
-            X[k:k+numSamples,:] = phi_X
-            Y[k:k+numSamples] = sample.region
-            num_subs[i] = numSamples
-            k += numSamples
-        return (X,Y,num_subs)
+            #numSamples,_ = phi_X.shape
+            X[i,:,:] = phi_X
+            Y[i] = sample.region
+            if i%nupdate==0:
+                print("%d%%..."%((100*i)/n_train));
+            #num_subs[i] = numSamples
+            #k += numSamples
+        #return (X,Y,num_subs)
+        return (X,Y)
     def make_prediction(self,X):
         phiX = self.phi.get_phi(X)
         votes = self.predictor.predict(phiX)
@@ -59,6 +68,13 @@ class Classifier:
                 actual[i] = Y_test[k];
                 k+=nsub
         '''
+        m, nsub, nfeat = np.shape(phi_x);
+        hat = np.zeros(m);
+        sub_hat = self.predictor.predict(np.reshape(phi_x,(m*nsub,nfeat)));
+        for i in range(m):
+            votes = sub_hat[i*nsub:(i+1)*nsub]
+            hat[i] = stats.mode(votes).mode[0]
+        """
         k = 0
         hat = np.zeros(len(num_subs))
         sub_hat = self.predictor.predict(phi_x)
@@ -66,8 +82,9 @@ class Classifier:
             votes = sub_hat[k:k+nsub]
             hat[i] = stats.mode(votes).mode[0]
             k += nsub
+        """
         return hat
-        
+
     def make_phi_prediction(self,phi_x):
         return self.predictor.predict(phi_x)
     def trainSVMBatch(self,train_samples,X_train=None,Y_train=None,num_subs=None,kernel='rbf',C=500,gamma='auto'):
@@ -84,7 +101,8 @@ class Classifier:
         C             = Logistic regularization parameter
         '''
 
-        if X_train is None or Y_train is None or num_subs is None:
+        #if X_train is None or Y_train is None or num_subs is None:
+        if X_train is None or Y_train is None:
             n_train = len(train_samples);
 
             subsamp_per = train_samples[0].Nsub;
@@ -130,21 +148,28 @@ class Classifier:
             totalErr = 1 - float(sum(train_actual == train_hat))/len(train_actual)
             print "---- Total Training Error: %.4f" % totalErr
         else:
-            n_train = len(num_subs)
+            m, nsub, nfeat = np.shape(X_train);
+            #n_train = len(num_subs)
+
             if kernel=='rbf':
                 clf = svm.SVC(kernel=kernel,C=C,gamma=gamma)
             elif kernel=='linear':
                 clf = svm.LinearSVC(C=C,loss='hinge')
-            clf.fit(X_train,Y_train)
+            #clf.fit(X_train,Y_train)
+            clf.fit(np.reshape(X_train,(m*nsub,nfeat)),np.repeat(Y_train,nsub));
 
             self.predictor = clf
 
-            train_actual = np.zeros(n_train)
-            train_hat = self.make_batch_prediction(X_train,num_subs)    
+            #train_actual = np.zeros(n_train)
+            train_actual = Y_train;
+            #train_hat = self.make_batch_prediction(X_train,num_subs)
+            train_hat = self.make_batch_prediction(X_train,None);
+            """
             k = 0
             for i,nsub in enumerate(num_subs):
                 train_actual[i] = Y_train[k];
-                k+=nsub    
+                k+=nsub
+            """
 
             print("Finished Training Classifier with Training Error:---------------")
             for region in range(7):
@@ -221,12 +246,12 @@ class Classifier:
             self.predictor = log_reg
 
             train_actual = np.zeros(n_train)
-            train_hat = self.make_batch_prediction(X_train,num_subs)    
+            train_hat = self.make_batch_prediction(X_train,num_subs)
             k = 0
             for i,nsub in enumerate(num_subs):
                 train_actual[i] = Y_train[k];
-                k+=nsub   
-            
+                k+=nsub
+
 
             print("Finished Training Classifier with Training Error:---------------")
             for region in range(7):
@@ -242,7 +267,8 @@ class Classifier:
     def testClassifier(self, test_samples,X_test=None,Y_test=None,num_subs=None):
         if self.predictor == None:
             raise ValueError("Error: This classifier has not been trained yet.")
-        if X_test is None or Y_test is None or num_subs is None:
+        #if X_test is None or Y_test is None or num_subs is None:
+        if X_test is None or Y_test is None:
             n_test = len(test_samples);
             test_actual = np.zeros((n_test,1))
             test_hat = np.zeros((n_test,1))
@@ -250,14 +276,19 @@ class Classifier:
                 test_actual[i] = sample.region
                 test_hat[i] = self.make_prediction(sample)
         else:
-            n_test = len(num_subs)
+            n_test, nsub, nfeat = np.shape(X_test);
+            #n_test = len(num_subs)
             test_actual = np.zeros(n_test)
-            test_hat = self.make_batch_prediction(X_test,num_subs)
+            #test_hat = self.make_batch_prediction(X_test,num_subs)
+            test_hat = self.make_batch_prediction(X_test,None)
+            test_actual=Y_test;
+            """
             k = 0
             for i,nsub in enumerate(num_subs):
                 test_actual[i] = Y_test[k];
                 k+=nsub
-                
+            """
+
 
         print("-----------------------------------------------------")
         print("-------------------Testing Error:-------------------")
