@@ -30,6 +30,7 @@ LOAD_DATA = True;
 #OTHER OPTIONS
 return_rec=True
 iters = 10;
+USE_PROB = True
 
 frac_test = 0.2;
 
@@ -95,10 +96,10 @@ if __name__ == "__main__":
         Y_test = Y[inds[:num_test]];
 
         extractor.trainSVMBatch(train_samples=None, X_train=X_train, Y_train=Y_train,kernel='rbf',
-                                    C=50000,gamma=1/(10000*float(myPhi.LEN)) );
+                                    C=50000,gamma=1/(10000*float(myPhi.LEN)),probability=USE_PROB);
 
         (j_totalErr, j_conf_mat) = extractor.testClassifier(test_samples=None,X_test=X_test,
-                                            Y_test=Y_test,get_conf_mat=True);
+                                            Y_test=Y_test,get_conf_mat=True,probability=USE_PROB);
         totalErr += j_totalErr;
         conf_mat += j_conf_mat;
 

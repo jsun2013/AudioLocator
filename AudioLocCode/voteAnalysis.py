@@ -32,7 +32,7 @@ LOAD_DATA = True;
 #Other Settings
 frac_test = 0.2;
 iters = 10;
-
+PLOT=False
 
 class phi1:
     LEN = 0;
@@ -81,7 +81,7 @@ if __name__ == "__main__":
             pickle.dump(thisData,myPkl);
 
     num_test = int(round(frac_test*nsamp));
-    vote_rec_per = [[np.empty((0,2)), np.empty((0,2))] for i in range(7)]
+    vote_rec_per = [[np.empty((0,2)), np.empty((0,3))] for i in range(7)]
 
     for jiter in range(iters):
         #Shuffle up the order
@@ -112,30 +112,43 @@ if __name__ == "__main__":
             else:
                 #Incorrect Prediction
                 this_count = np.bincount(vote_rec[i]);
-                #hit0 = this_count[jlabel]; #Actual label
                 #hit1 = max(this_count); #Winning vote.
                 hit0 = this_count[test_hat[i]]; #Winning vote
                 this_count[test_hat[i]]=0;
                 hit1 = max(this_count); #Runner up vote.
+                if jlabel >= np.size(this_count):
+                    hit2 = 0;
+                else:
+                    hit2 = this_count[jlabel]; #Actual label
                 #vote_rec_per[jlabel][1].append([hit0, hit1]);
-                vote_rec_per[jlabel][1] = np.append(vote_rec_per[jlabel][1],np.array([[hit0, hit1]]),axis=0);
+                vote_rec_per[jlabel][1] = np.append(vote_rec_per[jlabel][1],np.array([[hit0, hit1, hit2]]),axis=0);
     total_del_correct = np.empty(0);
     total_del_incorrect = np.empty(0);
+    total_incorrect_deficit = np.empty(0);
     for ireg in range(7):
         del_correct = vote_rec_per[ireg][0][:,0] - vote_rec_per[ireg][0][:,1];
         del_incorrect = vote_rec_per[ireg][1][:,0] - vote_rec_per[ireg][1][:,1];
+        incorrect_deficit = vote_rec_per[ireg][1][:,0] - vote_rec_per[ireg][1][:,2];
         #Add to overall total
         total_del_correct = np.append(total_del_correct,del_correct);
         total_del_incorrect = np.append(total_del_incorrect,del_incorrect);
+        total_incorrect_deficit = np.append(total_incorrect_deficit,incorrect_deficit);
+        #TODO: pyplot hist is garbage. Try manual binning and step plot.
         #Plot
-        fig = plt.figure();
-        ax = fig.add_subplot(211);
-        ax.hist(del_correct,bins=NSUB,range=[0, NSUB]);
-        ax2 = fig.add_subplot(212);
-        ax2.hist(del_incorrect,bins=NSUB,range=[0, NSUB]);
+        if PLOT:
+            fig = plt.figure();
+            ax = fig.add_subplot(211);
+            ax.hist(del_correct,range=(0,NSUB),align='right');
+            ax2 = fig.add_subplot(212);
+            ax2.hist(del_incorrect,range=(0,NSUB),bins=NSUB,align='right');
+    #Gather some voting statistics
+
     #Plot all regions together
-    fig = plt.figure();
-    ax = fig.add_subplot(211);
-    ax.hist(total_del_correct,bins=NSUB,range=[0, NSUB]);
-    ax2 = fig.add_subplot(212);
-    ax2.hist(total_del_incorrect,bins=NSUB,range=[0, NSUB]);
+    if PLOT:
+        fig = plt.figure();
+        ax = fig.add_subplot(311);
+        ax.hist(total_del_correct,bins=NSUB+1,align='right');
+        ax2 = fig.add_subplot(312);
+        ax2.hist(total_del_incorrect,bins=NSUB+1,align='right');
+        ax3 = fig.add_subplot(313);
+        ax3.hist(total_incorrect_deficit,bins=NSUB+1,align='right');

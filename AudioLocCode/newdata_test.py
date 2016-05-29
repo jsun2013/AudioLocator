@@ -43,6 +43,7 @@ train_file = 'trainingPhi_%02i%02i_%i_%i_%i_%i_%i_%i.pkl'%(MONTH,DAY,TSUB,NSUB,F
 METHOD = 'rbf' #'rbf' or 'logistic' or 'linear'
 #TODO: ^not implemented!!
 GET_CURVE=True
+iters = 5;
 
 class phi1:
     LEN = 0;
@@ -144,10 +145,12 @@ if __name__ == "__main__":
         test_nsub_errs = np.zeros(np.size(test_nsub_arr));
         for (i_nsub, test_nsub) in enumerate(test_nsub_arr):
             (jX_test,jY_test) = reshape_into_subsamples(X_test,Y_test,TSUB,test_nsub);
-
-            totalErr = extractor.testClassifier(test_samples=None,X_test=jX_test,Y_test=jY_test);
-            test_nsub_errs[i_nsub] = totalErr;
+            totalErr = 0;
+            for j in range(iters):
+                totalErr += extractor.testClassifier(test_samples=None,X_test=jX_test,Y_test=jY_test);
+            test_nsub_errs[i_nsub] = totalErr/iters;
         fig = plt.figure();
         plt.scatter(test_nsub_arr,test_nsub_errs);
-
+        plt.xlabel('# Subsamples');
+        plt.ylabel('Test Error on New Data');
     mt.toc()

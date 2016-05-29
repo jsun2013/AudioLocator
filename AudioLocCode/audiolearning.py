@@ -53,7 +53,7 @@ class Classifier:
         phiX = self.phi.get_phi(X)
         votes = self.predictor.predict(phiX)
         return stats.mode(votes).mode[0]
-    def make_batch_prediction(self,phi_x,num_subs,return_rec=False):
+    def make_batch_prediction(self,phi_x,num_subs,return_rec=False,probability=False):
         '''
         phi_x is a matrix: (samples) x (subsamples) x (features)
 
@@ -62,19 +62,37 @@ class Classifier:
         m, nsub, nfeat = np.shape(phi_x);
         hat = np.zeros(m);
         sub_hat = self.predictor.predict(np.reshape(phi_x,(m*nsub,nfeat)));
+        if probability:
+            #prob_hat = self.predictor.predict_log_proba(np.reshape(phi_x,(m*nsub,nfeat)));
+            prob_hat = self.predictor.predict_proba(np.reshape(phi_x,(m*nsub,nfeat)));
         if return_rec:
             vote_rec = [];
         for i in range(m):
-            votes = sub_hat[i*nsub:(i+1)*nsub]
             #hat[i] = stats.mode(votes).mode[0] #Tiebreaker: whichever comes first?
-
-            vote_bins = np.bincount(votes);
-            maxvote = np.max(vote_bins);
-            argmaxx = np.where(np.array(vote_bins)==maxvote)[0];
-            if np.size(argmaxx)>1:
-                #Random for now?
-                hat[i] = np.random.choice(argmaxx);
+            """
+            if probability:
+                #Try always using total probability instead of voting
+                probs = prob_hat[i*nsub:(i+1)*nsub,:];
+                #total_probs = np.sum(probs,axis=0); #Sum the log probabilities across subsample
+                total_probs = np.prod(probs,axis=0); #multiply the probabilities across subsample
+                hat[i] = np.argmax(total_probs);
             else:
+            """
+            votes = sub_hat[i*nsub:(i+1)*nsub]
+            vote_bins = np.bincount(votes);
+            maxvote = np.max(vote_bins); #Get highest vote total
+            argmaxx = np.where(np.array(vote_bins)==maxvote)[0]; #Find all regions with that vote total
+            if np.size(argmaxx)>1:
+                #Tie
+                if probability:
+                    probs = prob_hat[i*nsub:(i+1)*nsub,:];
+                    total_probs = np.prod(probs,axis=0); #multiply the probabilities across subsample
+                    hat[i] = np.argmax(total_probs);
+                else:
+                    #Random for now?
+                    hat[i] = np.random.choice(argmaxx);
+            else:
+                #No Tie
                 hat[i] = argmaxx[0];
 
             if return_rec:
@@ -86,7 +104,8 @@ class Classifier:
 
     def make_phi_prediction(self,phi_x):
         return self.predictor.predict(phi_x)
-    def trainSVMBatch(self,train_samples,X_train=None,Y_train=None,num_subs=None,kernel='rbf',C=500,gamma='auto'):
+    def trainSVMBatch(self,train_samples,X_train=None,Y_train=None,num_subs=None,
+                      kernel='rbf',C=500,gamma='auto',probability=False):
         '''
         Train a kernalized SVM that separates a supersample into a batch
         of samples. The samples are then used to train the SVM as
@@ -123,9 +142,9 @@ class Classifier:
             print("Finished feature extraction. Running fitting...");
 
             if kernel=='rbf':
-                clf = svm.SVC(kernel=kernel,C=C,gamma=gamma)
+                clf = svm.SVC(kernel=kernel,C=C,gamma=gamma,probability=probability)
             elif kernel=='linear':
-                clf = svm.LinearSVC(C=C,loss='hinge')
+                clf = svm.LinearSVC(C=C,loss='hinge',probability=probability)
 
             clf.fit(X_train,Y_train)
 
@@ -151,9 +170,9 @@ class Classifier:
             m, nsub, nfeat = np.shape(X_train);
 
             if kernel=='rbf':
-                clf = svm.SVC(kernel=kernel,C=C,gamma=gamma)
+                clf = svm.SVC(kernel=kernel,C=C,gamma=gamma,probability=probability)
             elif kernel=='linear':
-                clf = svm.LinearSVC(C=C,loss='hinge')
+                clf = svm.LinearSVC(C=C,loss='hinge',probability=probability)
             #clf.fit(X_train,Y_train)
             clf.fit(np.reshape(X_train,(m*nsub,nfeat)),np.repeat(Y_train,nsub));
 
@@ -267,7 +286,8 @@ class Classifier:
         return totalErr
 
 
-    def testClassifier(self, test_samples,X_test=None,Y_test=None,get_conf_mat = False,num_subs=None,return_rec=False):
+    def testClassifier(self, test_samples,X_test=None,Y_test=None,get_conf_mat = False,
+                       num_subs=None,return_rec=False,probability=False):
         if self.predictor == None:
             raise ValueError("Error: This classifier has not been trained yet.")
         #if X_test is None or Y_test is None or num_subs is None:
@@ -285,9 +305,10 @@ class Classifier:
             #test_hat = self.make_batch_prediction(X_test,num_subs)
             test_actual=Y_test;
             if return_rec:
-                (test_hat,vote_rec) = self.make_batch_prediction(X_test,None,return_rec=return_rec)
+                (test_hat,vote_rec) = self.make_batch_prediction(X_test,None,
+                            return_rec=return_rec,probability=probability)
             else:
-                test_hat = self.make_batch_prediction(X_test,None);
+                test_hat = self.make_batch_prediction(X_test,None,probability=probability);
 
 
         if get_conf_mat:
