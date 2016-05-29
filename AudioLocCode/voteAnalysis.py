@@ -82,7 +82,7 @@ if __name__ == "__main__":
 
     num_test = int(round(frac_test*nsamp));
     vote_rec_per = [[np.empty((0,2)), np.empty((0,3))] for i in range(7)]
-
+    totalErr = 0
     for jiter in range(iters):
         #Shuffle up the order
         inds = range(nsamp);
@@ -97,9 +97,9 @@ if __name__ == "__main__":
         extractor.trainSVMBatch(train_samples=None, X_train=X_train, Y_train=Y_train,kernel='rbf',
                                     C=50000,gamma=1/(10000*float(myPhi.LEN)) );
 
-        (totalErr,test_actual,test_hat,vote_rec) = extractor.testClassifier(test_samples=None,X_test=X_test,
+        (jtotalErr,test_actual,test_hat,vote_rec) = extractor.testClassifier(test_samples=None,X_test=X_test,
                                             Y_test=Y_test,get_conf_mat=False,return_rec=True);
-
+        totalErr+=jtotalErr;
         for (i,jlabel) in enumerate(test_actual):
             if test_hat[i]==jlabel:
                 #Correct Prediction
@@ -122,6 +122,8 @@ if __name__ == "__main__":
                     hit2 = this_count[jlabel]; #Actual label
                 #vote_rec_per[jlabel][1].append([hit0, hit1]);
                 vote_rec_per[jlabel][1] = np.append(vote_rec_per[jlabel][1],np.array([[hit0, hit1, hit2]]),axis=0);
+    totalErr = totalErr/iters;
+    print "Average test error = %0.02f%%"%(100*totalErr);
     total_del_correct = np.empty(0);
     total_del_incorrect = np.empty(0);
     total_incorrect_deficit = np.empty(0);
@@ -142,7 +144,27 @@ if __name__ == "__main__":
             ax2 = fig.add_subplot(212);
             ax2.hist(del_incorrect,range=(0,NSUB),bins=NSUB,align='right');
     #Gather some voting statistics
+    n_incorrect = np.size(total_del_incorrect); n_correct = np.size(total_del_correct);
 
+    #Percentage of incorrect predictions when the vote-gap was 0, 1 respectively
+    n_del1m_correct = np.sum(np.round(total_del_correct<=1));
+    n_del1m_incorrect = np.sum(np.round(total_del_incorrect<=1));
+    n_del1_from_correct = np.sum(np.round(total_incorrect_deficit<=1));
+    print "%0.02f%% of samples have margin <=1"%(100*(n_del1m_correct+n_del1m_incorrect)/(n_correct+n_incorrect))
+
+    perc_tie_err = np.sum(np.round(total_del_incorrect==0))/n_incorrect;
+    perc_del1_err = np.sum(np.round(total_del_incorrect==1))/n_incorrect;
+    print "%% of incorrect prediction coming from small voting margins:"
+    print "\t%0.02f%% Ties"%(100*perc_tie_err)
+    print "\t%0.02f%% Margin=1"%(100*perc_del1_err)
+    print "\t%0.02f%% Margin<=1"%(100*( perc_del1_err+perc_tie_err))
+
+    perc_del1m_correct = n_del1m_correct/(n_del1m_correct + n_del1m_incorrect)
+    print "%0.02f%% of samples with <=1 margin predicted correctly"%(100*perc_del1m_correct)
+    perc_del1m_incorrect_close = n_del1_from_correct/(n_del1m_correct + n_del1m_incorrect)
+    print "%0.02f%% of samples with <=1 margin predicted incorrectly with correct choice second"%(100*perc_del1m_incorrect_close)
+    print "This is %0.02f%% error (which could be reduced)"%(100*n_del1_from_correct/(n_correct+n_incorrect))
+    print "\t->this is %0.02f%% of our errors"%(100*n_del1_from_correct/n_incorrect)
     #Plot all regions together
     if PLOT:
         fig = plt.figure();

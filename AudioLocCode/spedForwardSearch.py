@@ -22,7 +22,7 @@ reload(audiolearning)
 import mytimer as mt
 
 #PARAMETERS
-FFT_BINS = 180;
+FFT_BINS = 80;
 FWIN = 25;
 TWIN = 1;
 NPERSEG = 1024;
@@ -110,7 +110,7 @@ for nfeat in range(nfft_bins_end):
     for ifeat in range(nfft_bins_start):
         prog+=1;
         if prog%nupdate==0:
-            print("%d%%...")
+            print("%d%%..."((100*(ifeat+nfeat*nfft_bins_start))/tot))
         if (bin_inds==ifeat).any():
             #We have already chosen this feature. Keep moving along
             #Set error to 100% so it isn't chosen as best feature
@@ -136,6 +136,10 @@ for nfeat in range(nfft_bins_end):
     bin_inds = np.append(bin_inds,ifeat_min);
     feat_errs[nfeat] = ifeat_errs[ifeat_min];
 
-
+fwdSearch = {};
+fwdSearch['bin_inds'] = bin_inds;
+fwdSearch['feat_errs'] = feat_errs;
+with open(pickle_file,'wb') as myPkl:
+    pickle.dump(fwdSearch,myPkl)
 mt.toc();
 

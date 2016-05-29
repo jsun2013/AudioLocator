@@ -42,8 +42,10 @@ train_file = 'trainingPhi_%02i%02i_%i_%i_%i_%i_%i_%i.pkl'%(MONTH,DAY,TSUB,NSUB,F
 #OTHER OPTIONS
 METHOD = 'rbf' #'rbf' or 'logistic' or 'linear'
 #TODO: ^not implemented!!
-GET_CURVE=True
-iters = 5;
+GET_CURVE=False
+USE_PROB = False
+ENSEMBLE=True
+iters = 10;
 
 class phi1:
     LEN = 0;
@@ -110,8 +112,12 @@ if __name__ == "__main__":
             pickle.dump(thisData,myPkl);
     #TRAIN CLASSIFIER
     #TODO: add other methods
-    extractor.trainSVMBatch(train_samples=None,X_train=X_train, Y_train=Y_train,
-                            kernel='rbf',C=5000,gamma=1/(10000*float(myPhi.LEN)));
+    if ENSEMBLE:
+        extractor.trainEnsemble1(train_samples=None, X_train=X_train, Y_train=Y_train,kernel='rbf',
+                                    C=50000,gamma=1/(10000*float(myPhi.LEN)),probability=USE_PROB);
+    else:
+        extractor.trainSVMBatch(train_samples=None,X_train=X_train, Y_train=Y_train,
+                                kernel='rbf',C=5000,gamma=1/(10000*float(myPhi.LEN)),probability=USE_PROB);
     #NOTE: using short NSUB for training does change the training error evaluation
 
 
@@ -138,8 +144,14 @@ if __name__ == "__main__":
     if GET_CURVE==False:
         TEST_NSUB = 10;
         (X_test,Y_test) = reshape_into_subsamples(X_test,Y_test,TSUB,TEST_NSUB);
-
-        totalErr = extractor.testClassifier(test_samples=None,X_test=X_test,Y_test=Y_test);
+        totalErr = 0;
+        for j in range(iters):
+            if ENSEMBLE:
+                totalErr += extractor.testClassifierEnsemble(test_samples=None,X_test=X_test,Y_test=Y_test);
+            else:
+                totalErr += extractor.testClassifier(test_samples=None,X_test=X_test,Y_test=Y_test,probability=USE_PROB);
+        totalErr =totalErr/iters;
+        print("Average Generalized Test Error = %0.04f"%totalErr)
     else:
         test_nsub_arr = np.array([1, 2, 4, 5, 10, 12, 15, 20, 25, 30,45,60],dtype=np.int8);
         test_nsub_errs = np.zeros(np.size(test_nsub_arr));
@@ -147,7 +159,7 @@ if __name__ == "__main__":
             (jX_test,jY_test) = reshape_into_subsamples(X_test,Y_test,TSUB,test_nsub);
             totalErr = 0;
             for j in range(iters):
-                totalErr += extractor.testClassifier(test_samples=None,X_test=jX_test,Y_test=jY_test);
+                totalErr += extractor.testClassifier(test_samples=None,X_test=jX_test,Y_test=jY_test,probability=USE_PROB);
             test_nsub_errs[i_nsub] = totalErr/iters;
         fig = plt.figure();
         plt.scatter(test_nsub_arr,test_nsub_errs);

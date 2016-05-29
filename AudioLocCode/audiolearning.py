@@ -53,6 +53,37 @@ class Classifier:
         phiX = self.phi.get_phi(X)
         votes = self.predictor.predict(phiX)
         return stats.mode(votes).mode[0]
+    def make_batch_prediction_ensemble(self,phi_x):
+        m, nsub, nfeat = np.shape(phi_x);
+        hat = np.zeros(m);
+        sub_hat = self.predictor.predict(np.reshape(phi_x,(m*nsub,nfeat)));
+        #TODO:return_rec
+        for i in range(m):
+            votes = sub_hat[i*nsub:(i+1)*nsub]
+            vote_bins = np.bincount(votes);
+            vote_bins = np.append(vote_bins,np.zeros(7-np.size(vote_bins)));
+            vote_bins_sort = np.sort(vote_bins);
+            vote_bins_sort = vote_bins_sort[::-1]; #Descending
+            #if vote_bins_sort[0] - vote_bins_sort[1] <= 1:
+                #Small margit vote. use back-up predictor
+            if vote_bins_sort[0] - vote_bins_sort[1] == 1:
+                #Retest ties
+                tie_votes = self.tie_predictor.predict(phi_x[i,:,:]);
+                tie_vote_bins = np.bincount(tie_votes) #Ensemble: aggregate votes
+                tie_vote_bins = np.append(tie_vote_bins,np.zeros(7-np.size(tie_vote_bins)));
+                total_vote_bins = tie_vote_bins + 1.1*vote_bins; #tie breaker is rbf
+                tie_maxvote = np.max(total_vote_bins); #Get highest vote total
+                tie_argmaxx = np.where(np.array(total_vote_bins)==tie_maxvote)[0]; #Find all regions with that vote total
+                if np.size(tie_argmaxx)>1:
+                    hat[i] = np.random.choice(tie_argmaxx);
+                else:
+                    #No Tie
+                    hat[i] = tie_argmaxx[0];
+            else:
+                hat[i]=np.argmax(vote_bins);
+        return hat
+
+
     def make_batch_prediction(self,phi_x,num_subs,return_rec=False,probability=False):
         '''
         phi_x is a matrix: (samples) x (subsamples) x (features)
@@ -104,6 +135,45 @@ class Classifier:
 
     def make_phi_prediction(self,phi_x):
         return self.predictor.predict(phi_x)
+
+    def trainEnsemble1(self,train_samples,X_train=None,Y_train=None,num_subs=None,
+                      kernel='rbf',C=500,gamma='auto',probability=False):
+        if X_train is None or Y_train is None:
+            raise ValueError("trainEnsemble: train-as-you-go not implemented!")
+        else:
+            m, nsub, nfeat = np.shape(X_train);
+            clf = svm.SVC(kernel='rbf',C=C,gamma=gamma,probability=probability)
+            clf.fit(np.reshape(X_train,(m*nsub,nfeat)),np.repeat(Y_train,nsub));
+            self.predictor=clf;
+
+            #Secondary
+
+            #logit = linear_model.LogisticRegression(C=50) #22.4 % generalization error
+
+            logit = linear_model.LogisticRegression(C=500) #21.8 % generalization error
+            logit.fit( np.reshape(X_train,(m*nsub,nfeat)),np.repeat(Y_train,nsub) )
+            self.tie_predictor=logit;
+            #TODO: different value of C^?
+            """
+            #Below did not beat probability meausure for <=1 or ==1
+            clf2 = svm.LinearSVC(C=500,loss='hinge') #23.3
+            clf2.fit(np.reshape(X_train,(m*nsub,nfeat)),np.repeat(Y_train,nsub));
+            self.tie_predictor=clf2;
+            """
+
+            train_actual = Y_train;
+            train_hat = self.make_batch_prediction_ensemble(X_train);
+
+            print("Finished Training Classifier with Training Error:---------------")
+            for region in range(7):
+                actual = train_actual[train_actual == region]
+                pred = train_hat[train_actual == region]
+                err = 1 - float(sum(actual == pred))/len(actual)
+                print "Error for region %d: %.4f" % (region,err)
+            totalErr = 1 - float(sum(train_actual == train_hat))/len(train_actual)
+            print "---- Total Training Error: %.4f" % totalErr
+        return totalErr
+
     def trainSVMBatch(self,train_samples,X_train=None,Y_train=None,num_subs=None,
                       kernel='rbf',C=500,gamma='auto',probability=False):
         '''
@@ -285,6 +355,28 @@ class Classifier:
             print "---- Total Training Error: %.4f" % totalErr
         return totalErr
 
+    def testClassifierEnsemble(self, test_samples,X_test=None,Y_test=None):
+        if self.predictor == None:
+            raise ValueError("Error: This classifier has not been trained yet.")
+        #if X_test is None or Y_test is None or num_subs is None:
+        if X_test is None or Y_test is None:
+            raise ValueError("trainEnsemble: train-as-you-go not implemented!")
+        n_test, nsub, nfeat = np.shape(X_test);
+        test_actual=Y_test;
+        test_hat = self.make_batch_prediction_ensemble(X_test);
+        print("-----------------------------------------------------")
+        print("-------------------Testing Error:-------------------")
+        for region in range(7):
+            actual = test_actual[test_actual == region]
+            pred = test_hat[test_actual == region]
+            if len(actual)==0:
+                print("  ->No test samples from Region %d"%region)
+                continue
+            err = 1 - float(sum(actual == pred))/len(actual)
+            print "Error for region %d: %.4f" % (region,err)
+        totalErr = 1 - float(sum(test_actual == test_hat))/n_test
+        print "---- Total Testing Error: %.4f" % totalErr
+        return totalErr
 
     def testClassifier(self, test_samples,X_test=None,Y_test=None,get_conf_mat = False,
                        num_subs=None,return_rec=False,probability=False):
