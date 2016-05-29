@@ -11,6 +11,7 @@ from numpy import fft
 from statsmodels.tsa import stattools
 from scikits.talkbox import features
 from scipy.stats import binned_statistic
+import pickle
 
 """
 %Example usage:
@@ -128,6 +129,60 @@ def getAllSPED(sups, N, twin = 3, fwin = 21, nperseg=256, spacing="log"):
 
     return F_all;
 
+def getSupersampleSPEDselect(s, N, keep_inds, twin = 3, fwin = 21, nperseg=256, spacing="log"):
+    samples = s.getSubsamples();
+    #For simplicity, twin, fwin must be odd
+    twin = int( 2*np.floor(twin/2) + 1);
+    fwin = int( 2*np.floor(fwin/2) + 1);
+    h_twin = np.floor(twin/2); h_fwin = np.floor(fwin/2);
+
+    fs = s.waveparms.fs;
+    (M,L) = np.shape(samples);
+
+    BLOCKSIZE = 2**10;
+
+    keep_len = len(keep_inds);
+
+    #F = np.empty([M,N]); #Array for storing feature output, N for each sample, M samples per supersample
+    F_sel = np.empty([M,keep_len]);
+    for i in range(M):
+        isample = samples[i,:];
+        #Get spectrogram of this sample
+        fax, tax, spec = signal.spectrogram(isample,fs,nperseg=nperseg,nfft=BLOCKSIZE);
+
+        (nf,nt) = np.shape(spec);
+        isped = np.zeros((nf,nt));
+
+        num_fbin = int(np.ceil(nf/h_fwin));
+        peaks = np.zeros((num_fbin,nt) );
+        for j in range(nt):
+            for jfbin in range( num_fbin ):
+                fbin = spec[jfbin*h_fwin:min(nf,(jfbin+1)*h_fwin), j];
+                peaks[jfbin,j] = np.amax( fbin );
+        for j in range(nt):
+            for jfbin in range( num_fbin ):
+                if (peaks[jfbin,j] >= peaks[max(0,jfbin-1):min(num_fbin,jfbin+2),max(0,j-h_twin):min(nt,j+h_twin+1)]).all():
+                    fbin = spec[jfbin*h_fwin:min(nf,(jfbin+1)*h_fwin), j];
+                    isped[jfbin*h_fwin:min(nf,(jfbin+1)*h_fwin),j] = np.round(fbin >=peaks[jfbin,j]);
+
+        ispedf = np.sum(isped,1);
+        #ispedf = ispedf + 1; #Laplace smoothing?
+
+        #Need to downsample to N bins
+        if spacing=="log":
+            lbase = 3.0;
+            bin_ends = np.logspace(np.log10(fax[3])/np.log10(lbase),np.log10(fax[-1])/np.log10(lbase),N+1,base=lbase)
+        elif spacing=="lin":
+            bin_ends = np.linspace(fax[1],fax[-1],N+1)
+        bin_ends[0] = -1;
+
+        for (j,jkeep) in enumerate(keep_inds):
+            isped_bin = ispedf[(fax>bin_ends[jkeep]) & (fax<=bin_ends[jkeep+1])];
+            isped_bin.sort(); isped_bin[:] = isped_bin[::-1];
+
+            F_sel[i,j] = np.sum(isped_bin[0:min(5,np.size(isped_bin))]);
+
+    return F_sel
 
 def getSupersampleSPED(s, N, twin = 3, fwin = 21, nperseg=256, spacing="log"):
     samples = s.getSubsamples();

@@ -1,5 +1,12 @@
 # -*- coding: utf-8 -*-
 """
+Created on Sat May 28 09:56:54 2016
+
+@author: ReidW
+"""
+
+# -*- coding: utf-8 -*-
+"""
 Created on Fri May 27 01:28:40 2016
 
 @author: ReidW
@@ -17,28 +24,38 @@ reload(audiolearning)
 import mytimer as mt
 
 #PARAMETERS
-FFT_BINS = 60;
 FWIN = 25;
 TWIN = 1;
 NPERSEG = 1024;
 TSUB = 1;
 NSUB = 10;
+NFFT = 180; #Resolution used in fwdSearch
+NSEL = 20; #Number of bins to use, capped out at number generated in fwdSearch
 
-data_file = 'spedPhi_%i_%i_%i_%i_%i_%i.pkl'%(TSUB,NSUB,FFT_BINS,FWIN,TWIN,NPERSEG);
+feat_file = "fwdSearch_%i_%i.pkl"%(NFFT,40);
+#Hmmm, could later find first file with at least NSEL bins selected. Manual for now.
+if not os.path.exists(feat_file):
+    raise ValueError("This forward search file not found.")
+
+data_file = 'reducedPhi_%i_%i_%i_%i_%i_%i_%i.pkl'%(TSUB,NSUB,NFFT,NSEL,FWIN,TWIN,NPERSEG);
 LOAD_DATA = True;
 
 #OTHER OPTIONS
-return_rec=True
-iters = 10;
+iters = 20;
+#fwdSearch file to use
 
 frac_test = 0.2;
 
-class phi1:
+class reducedPhi:
     LEN = 0;
-    def __init__(self,fft_bins):
-        #self.LEN = fft_bins;
-        self.LEN = fft_bins+13;
-        self.fft_bins = fft_bins;
+    def __init__(self):
+        self.LEN = NSEL+13;
+        with open(feat_file,'rb') as myPkl:
+            fwdSearch = pickle.load(myPkl)
+        keep_inds = fwdSearch['bin_inds'];
+        keep_inds = keep_inds[:NSEL];
+        keep_inds.sort()
+        self.keep_inds = keep_inds;
 
     def get_phi(self,sample):
         '''
@@ -47,7 +64,8 @@ class phi1:
         in the super sample.
         '''
 
-        XSPED = spectral.getSupersampleSPED(sample,self.fft_bins,fwin=FWIN,twin = TWIN,nperseg = NPERSEG,spacing="log")
+        #XSPED = spectral.getSupersampleSPED(sample,self.fft_bins,fwin=FWIN,twin = TWIN,nperseg = NPERSEG,spacing="log")
+        XSPED = spectral.getSupersampleSPEDselect(sample,NFFT,self.keep_inds,fwin=FWIN,twin = TWIN,nperseg = NPERSEG,spacing="log")
         XMFCC = spectral.getSampleMFCC(sample)
         return np.hstack((XMFCC,XSPED))
         #return XSPED
@@ -57,7 +75,7 @@ if __name__ == "__main__":
 
 
     #Create a classifier instance with your feature extraction method
-    myPhi = phi1(FFT_BINS);
+    myPhi = reducedPhi();
     extractor = audiolearning.Classifier(myPhi);
 
     #Extract all features once
@@ -82,7 +100,6 @@ if __name__ == "__main__":
     num_test = int(round(frac_test*nsamp));
 
     totalErr = 0;
-    conf_mat = np.zeros((7,7));
     for i_iter in range(iters):
         #Shuffle up the order
         inds = range(nsamp);
@@ -97,13 +114,9 @@ if __name__ == "__main__":
         extractor.trainSVMBatch(train_samples=None, X_train=X_train, Y_train=Y_train,kernel='rbf',
                                     C=50000,gamma=1/(10000*float(myPhi.LEN)) );
 
-        (j_totalErr, j_conf_mat) = extractor.testClassifier(test_samples=None,X_test=X_test,
-                                            Y_test=Y_test,get_conf_mat=True);
+        j_totalErr = extractor.testClassifier(test_samples=None,X_test=X_test,
+                                            Y_test=Y_test);
         totalErr += j_totalErr;
-        conf_mat += j_conf_mat;
 
     totalErr = totalErr/iters;
-    conf_mat = conf_mat/iters;
     print("\n\nMean Test Error = %0.06f"%totalErr)
-    np.set_printoptions(precision=4);
-    print conf_mat;

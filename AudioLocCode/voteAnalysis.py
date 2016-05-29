@@ -7,6 +7,7 @@ Created on Fri May 27 01:28:40 2016
 import os
 import numpy as np
 import pickle
+import matplotlib.pyplot as plt
 
 import samples
 reload(samples)
@@ -15,23 +16,23 @@ reload(spectral)
 import audiolearning
 reload(audiolearning)
 import mytimer as mt
+reload(mt)
 
 #PARAMETERS
 FFT_BINS = 60;
 FWIN = 25;
 TWIN = 1;
 NPERSEG = 1024;
-TSUB = 1;
-NSUB = 10;
+TSUB = 2;
+NSUB = 5;
 
 data_file = 'spedPhi_%i_%i_%i_%i_%i_%i.pkl'%(TSUB,NSUB,FFT_BINS,FWIN,TWIN,NPERSEG);
 LOAD_DATA = True;
 
-#OTHER OPTIONS
-return_rec=True
+#Other Settings
+frac_test = 0.2;
 iters = 10;
 
-frac_test = 0.2;
 
 class phi1:
     LEN = 0;
@@ -80,10 +81,9 @@ if __name__ == "__main__":
             pickle.dump(thisData,myPkl);
 
     num_test = int(round(frac_test*nsamp));
+    vote_rec_per = [[np.empty((0,2)), np.empty((0,2))] for i in range(7)]
 
-    totalErr = 0;
-    conf_mat = np.zeros((7,7));
-    for i_iter in range(iters):
+    for jiter in range(iters):
         #Shuffle up the order
         inds = range(nsamp);
         np.random.shuffle(inds);
@@ -97,13 +97,45 @@ if __name__ == "__main__":
         extractor.trainSVMBatch(train_samples=None, X_train=X_train, Y_train=Y_train,kernel='rbf',
                                     C=50000,gamma=1/(10000*float(myPhi.LEN)) );
 
-        (j_totalErr, j_conf_mat) = extractor.testClassifier(test_samples=None,X_test=X_test,
-                                            Y_test=Y_test,get_conf_mat=True);
-        totalErr += j_totalErr;
-        conf_mat += j_conf_mat;
+        (totalErr,test_actual,test_hat,vote_rec) = extractor.testClassifier(test_samples=None,X_test=X_test,
+                                            Y_test=Y_test,get_conf_mat=False,return_rec=True);
 
-    totalErr = totalErr/iters;
-    conf_mat = conf_mat/iters;
-    print("\n\nMean Test Error = %0.06f"%totalErr)
-    np.set_printoptions(precision=4);
-    print conf_mat;
+        for (i,jlabel) in enumerate(test_actual):
+            if test_hat[i]==jlabel:
+                #Correct Prediction
+                this_count = np.bincount(vote_rec[i]);
+                hit0 = this_count[jlabel];
+                this_count[jlabel]=0;
+                hit1 = max(this_count); #Runner up vote.
+                #vote_rec_per[jlabel][0].append([hit0, hit1]);
+                vote_rec_per[jlabel][0] = np.append(vote_rec_per[jlabel][0],np.array([[hit0, hit1]]),axis=0);
+            else:
+                #Incorrect Prediction
+                this_count = np.bincount(vote_rec[i]);
+                #hit0 = this_count[jlabel]; #Actual label
+                #hit1 = max(this_count); #Winning vote.
+                hit0 = this_count[test_hat[i]]; #Winning vote
+                this_count[test_hat[i]]=0;
+                hit1 = max(this_count); #Runner up vote.
+                #vote_rec_per[jlabel][1].append([hit0, hit1]);
+                vote_rec_per[jlabel][1] = np.append(vote_rec_per[jlabel][1],np.array([[hit0, hit1]]),axis=0);
+    total_del_correct = np.empty(0);
+    total_del_incorrect = np.empty(0);
+    for ireg in range(7):
+        del_correct = vote_rec_per[ireg][0][:,0] - vote_rec_per[ireg][0][:,1];
+        del_incorrect = vote_rec_per[ireg][1][:,0] - vote_rec_per[ireg][1][:,1];
+        #Add to overall total
+        total_del_correct = np.append(total_del_correct,del_correct);
+        total_del_incorrect = np.append(total_del_incorrect,del_incorrect);
+        #Plot
+        fig = plt.figure();
+        ax = fig.add_subplot(211);
+        ax.hist(del_correct,bins=NSUB,range=[0, NSUB]);
+        ax2 = fig.add_subplot(212);
+        ax2.hist(del_incorrect,bins=NSUB,range=[0, NSUB]);
+    #Plot all regions together
+    fig = plt.figure();
+    ax = fig.add_subplot(211);
+    ax.hist(total_del_correct,bins=NSUB,range=[0, NSUB]);
+    ax2 = fig.add_subplot(212);
+    ax2.hist(total_del_incorrect,bins=NSUB,range=[0, NSUB]);

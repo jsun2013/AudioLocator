@@ -53,36 +53,35 @@ class Classifier:
         phiX = self.phi.get_phi(X)
         votes = self.predictor.predict(phiX)
         return stats.mode(votes).mode[0]
-    def make_batch_prediction(self,phi_x,num_subs):
+    def make_batch_prediction(self,phi_x,num_subs,return_rec=False):
         '''
-        phi_x is a matrix of feature vectors of subsamples
-        num_subs is a vector of counts for each sample. Thus, if num_subs[0] = 4,
-            then phi_x[0:4,:] corresponds to sample 1
-        Typical usage:
-            (X,Y,num_subs) = extractor.extract_features(s)
-            m = len(num_subs)
-            hat = self.make_batch_prediction(X,num_subs)
-            actual = np.zeros(m)
-            k = 0
-            for i,nsub in enumerate(num_subs):
-                actual[i] = Y_test[k];
-                k+=nsub
+        phi_x is a matrix: (samples) x (subsamples) x (features)
+
+        See reidTest2 and trainSVMBatch, testClassifier for usage
         '''
         m, nsub, nfeat = np.shape(phi_x);
         hat = np.zeros(m);
         sub_hat = self.predictor.predict(np.reshape(phi_x,(m*nsub,nfeat)));
+        if return_rec:
+            vote_rec = [];
         for i in range(m):
             votes = sub_hat[i*nsub:(i+1)*nsub]
-            hat[i] = stats.mode(votes).mode[0]
-        """
-        k = 0
-        hat = np.zeros(len(num_subs))
-        sub_hat = self.predictor.predict(phi_x)
-        for i,nsub in enumerate(num_subs):
-            votes = sub_hat[k:k+nsub]
-            hat[i] = stats.mode(votes).mode[0]
-            k += nsub
-        """
+            #hat[i] = stats.mode(votes).mode[0] #Tiebreaker: whichever comes first?
+
+            vote_bins = np.bincount(votes);
+            maxvote = np.max(vote_bins);
+            argmaxx = np.where(np.array(vote_bins)==maxvote)[0];
+            if np.size(argmaxx)>1:
+                #Random for now?
+                hat[i] = np.random.choice(argmaxx);
+            else:
+                hat[i] = argmaxx[0];
+
+            if return_rec:
+                vote_rec.append(votes);
+
+        if return_rec:
+            return( hat, vote_rec);
         return hat
 
     def make_phi_prediction(self,phi_x):
@@ -122,6 +121,7 @@ class Classifier:
                 Y_train[k:k+numSamples] = sample.region
                 k += numSamples
             print("Finished feature extraction. Running fitting...");
+
             if kernel=='rbf':
                 clf = svm.SVC(kernel=kernel,C=C,gamma=gamma)
             elif kernel=='linear':
@@ -149,7 +149,6 @@ class Classifier:
             print "---- Total Training Error: %.4f" % totalErr
         else:
             m, nsub, nfeat = np.shape(X_train);
-            #n_train = len(num_subs)
 
             if kernel=='rbf':
                 clf = svm.SVC(kernel=kernel,C=C,gamma=gamma)
@@ -181,13 +180,6 @@ class Classifier:
             print "---- Total Training Error: %.4f" % totalErr
         return totalErr
 
-    def trainLogitBatch2(self,train_samples,test_samples=None,C=500):
-        '''
-        Deprecated, does  the same as trainLogitBatch
-        '''
-        warnings.warn("trainLogitBatch2 does the same as trainLogitBatch. Switch to using that one")
-        return self.trainLogitBatch(train_samples,C)
-
 
     def trainLogitBatch(self,train_samples,X_train=None,Y_train=None,num_subs=None,C=500):
         '''
@@ -202,7 +194,8 @@ class Classifier:
         C             = Logistic regularization parameter
         '''
 
-        if X_train is None or Y_train is None or num_subs is None:
+        #if X_train is None or Y_train is None or num_subs is None:
+        if X_train is None or Y_train is None:
             n_train = len(train_samples);
 
             subsamp_per = train_samples[0].Nsub;
@@ -211,12 +204,17 @@ class Classifier:
             Y_train = np.zeros(subsamp_per*n_train,dtype=np.int8);
 
             k = 0
-            for sample in train_samples:
+            print("Running feature extraction...")
+            nupdate = int(n_train/10);
+            for (i,sample) in enumerate(train_samples):
+                if i%nupdate==0:
+                    print("%d%%..."%((100*i)/n_train));
                 phi_X = self.phi.get_phi(sample)
                 numSamples,_ = phi_X.shape
                 X_train[k:k+numSamples,:] = phi_X
                 Y_train[k:k+numSamples] = sample.region
                 k += numSamples
+            print("Finished feature extraction. Running fitting...");
 
             log_reg = linear_model.LogisticRegression(C=C)
             log_reg.fit(X_train,Y_train)
@@ -239,19 +237,24 @@ class Classifier:
             totalErr = 1 - float(sum(train_actual == train_hat))/len(train_actual)
             print "---- Total Training Error: %.4f" % totalErr
         else:
-            n_train = len(num_subs)
+            m, nsub, nfeat = np.shape(X_train);
+            #n_train = len(num_subs)
             log_reg = linear_model.LogisticRegression(C=C)
-            log_reg.fit(X_train,Y_train)
+            #log_reg.fit(X_train,Y_train)
+            log_reg.fit( np.reshape(X_train,(m*nsub,nfeat)),np.repeat(Y_train,nsub) )
 
             self.predictor = log_reg
 
-            train_actual = np.zeros(n_train)
-            train_hat = self.make_batch_prediction(X_train,num_subs)
+            #train_actual = np.zeros(n_train)
+            train_actual = Y_train;
+            train_hat = self.make_batch_prediction(X_train,None);
+            #train_hat = self.make_batch_prediction(X_train,num_subs)
+            """
             k = 0
             for i,nsub in enumerate(num_subs):
                 train_actual[i] = Y_train[k];
                 k+=nsub
-
+            """
 
             print("Finished Training Classifier with Training Error:---------------")
             for region in range(7):
@@ -264,7 +267,7 @@ class Classifier:
         return totalErr
 
 
-    def testClassifier(self, test_samples,X_test=None,Y_test=None,num_subs=None):
+    def testClassifier(self, test_samples,X_test=None,Y_test=None,get_conf_mat = False,num_subs=None,return_rec=False):
         if self.predictor == None:
             raise ValueError("Error: This classifier has not been trained yet.")
         #if X_test is None or Y_test is None or num_subs is None:
@@ -278,23 +281,26 @@ class Classifier:
         else:
             n_test, nsub, nfeat = np.shape(X_test);
             #n_test = len(num_subs)
-            test_actual = np.zeros(n_test)
+            #test_actual = np.zeros(n_test)
             #test_hat = self.make_batch_prediction(X_test,num_subs)
-            test_hat = self.make_batch_prediction(X_test,None)
             test_actual=Y_test;
-            """
-            k = 0
-            for i,nsub in enumerate(num_subs):
-                test_actual[i] = Y_test[k];
-                k+=nsub
-            """
+            if return_rec:
+                (test_hat,vote_rec) = self.make_batch_prediction(X_test,None,return_rec=return_rec)
+            else:
+                test_hat = self.make_batch_prediction(X_test,None);
 
 
+        if get_conf_mat:
+            conf_mat = np.zeros((7,7));
         print("-----------------------------------------------------")
         print("-------------------Testing Error:-------------------")
         for region in range(7):
             actual = test_actual[test_actual == region]
             pred = test_hat[test_actual == region]
+            if get_conf_mat:
+                for jreg in range(7):
+                    conf_mat[region,jreg] = np.sum(np.round(pred==jreg));
+                conf_mat[region,:] = conf_mat[region,:]/len(actual);
             if len(actual)==0:
                 print("  ->No test samples from Region %d"%region)
                 continue
@@ -302,6 +308,11 @@ class Classifier:
             print "Error for region %d: %.4f" % (region,err)
         totalErr = 1 - float(sum(test_actual == test_hat))/n_test
         print "---- Total Testing Error: %.4f" % totalErr
-
+        if get_conf_mat:
+            if return_rec:
+                return (totalErr,conf_mat,test_actual,test_hat,vote_rec)
+            return (totalErr, conf_mat);
+        if return_rec:
+            return (totalErr,test_actual,test_hat,vote_rec)
         return totalErr
 

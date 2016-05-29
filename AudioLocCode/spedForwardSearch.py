@@ -21,8 +21,17 @@ import audiolearning
 reload(audiolearning)
 import mytimer as mt
 
+#PARAMETERS
+FFT_BINS = 180;
+FWIN = 25;
+TWIN = 1;
+NPERSEG = 1024;
+TSUB = 2;
+NSUB = 10;
+
+#Use standard filename to make sure you get the parameters you want
+data_file = 'spedPhi_%i_%i_%i_%i_%i_%i.pkl'%(TSUB,NSUB,FFT_BINS,FWIN,TWIN,NPERSEG);
 LOAD_DATA = True;
-data_file = 'spedPhi_2_10_180_45_1_1024.pkl'
 frac_test = 0.2;
 
 class spedPhi:
@@ -38,16 +47,21 @@ class spedPhi:
         in the super sample.
         '''
 
-        XSPED = spectral.getSupersampleSPED(sample,self.fft_bins,fwin=25,twin = 1,nperseg = 1024,spacing="log")
+        XSPED = spectral.getSupersampleSPED(sample,self.fft_bins,fwin=FWIN,twin = TWIN,nperseg = NPERSEG,spacing="log")
         return XSPED
 
 
-mt.tic();
 
-nfft_bins_start = 180; #Full features
+
+nfft_bins_start = FFT_BINS; #Full features
 nfft_bins_end = 40; #Reduced
 
-#bin_inds = np.empty((nfft_bins_end,1));
+pickle_file = "fwdSearch_%i_%i.pkl"%(nfft_bins_start,nfft_bins_end)
+if os.path.exists(pickle_file):
+    raise ValueError("This setting already exists, and would overwrite file. Check config, rename previous if necessary.")
+
+mt.tic();
+
 bin_inds = np.empty(0,dtype=np.int8);
 feat_errs = np.empty(nfft_bins_end);
 
@@ -63,7 +77,7 @@ if LOAD_DATA and os.path.exists(data_file):
     nsamp, _, _ = np.shape(X);
 else:
     #Collect all samples, figure out how many are reserved for test in X-validation
-    all_samples = samples.getAllSamples(Tsub=2,Nsub=10,READ_IN=False) #
+    all_samples = samples.getAllSamples(Tsub=TSUB,Nsub=NSUB,READ_IN=False) #
     nsamp = len(all_samples);
 
     (X,Y) = extractor.extract_features(all_samples)
@@ -102,14 +116,15 @@ for nfeat in range(nfft_bins_end):
             #Set error to 100% so it isn't chosen as best feature
             ifeat_errs[ifeat]=1;
             continue;
-        indsJ = np.append(bin_inds,[ifeat]); #add this feature to existing
-        indsJ = np.int(indsJ);
+        indsJ = np.append(bin_inds,ifeat); #add this feature to existing
         #Use reduced feature set
         pX_train = X_train[:,:,indsJ];
         pX_test = X_test[:,:,indsJ];
+        """
         if np.size(bin_inds)==0:
             pX_train = np.expand_dims(pX_train,2)
             pX_test = np.expand_dims(pX_test,2)
+        """
 
         extractor.trainSVMBatch(train_samples=None, X_train=pX_train, Y_train=Y_train,kernel='rbf',
                                 C=50000,gamma=1/(10000*float(np.size(bin_inds)+1)) );
