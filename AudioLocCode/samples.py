@@ -216,6 +216,23 @@ def findSamples(key,val):
     #TODO
     pass
 
+def reshape_into_subsamples(X_all, Y_all, nsub):
+    #SUGGESTED USAGE:
+    #For test data, run feature extraction for max. number of subsamples per audio clip
+    m_all, nsub_all, nfeat = np.shape(X_all);
+
+    mult = int(np.floor(nsub_all/nsub)); #How many can we fit in?
+    m = m_all*mult;
+    X_new = np.zeros((m,nsub,nfeat));
+    Y_new = np.repeat(Y_all,mult);
+    #Fill in new matrix
+    for i_new in range(m):
+        i_all = int(np.floor(np.float(i_new)/mult));
+        j_all = i_new - i_all*mult;
+        X_new[i_new,:,:] = X_all[i_all,j_all*nsub:(j_all+1)*nsub,:];
+        #for j in range(mult):
+    return (X_new,Y_new);
+
 class DataPhi:
     X = [];
     Y = [];

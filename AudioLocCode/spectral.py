@@ -253,7 +253,9 @@ def getSampleMFCC(sample, nceps=13):
     subsamples = sample.getSubsamples()
     for j,data in enumerate(subsamples):
         temp = features.mfcc(data,fs=sample.waveparms.fs,nceps=nceps)[0]
-        temp[~np.isfinite(temp)] = 0
+        temp[~np.isfinite(temp)] = float('inf')
+        min_val = np.amin(temp)
+        temp[~np.isfinite(temp)] = -2*min_val
         ceps[j,:] = np.mean(temp,0)
     return ceps
 

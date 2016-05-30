@@ -4,7 +4,7 @@ Created on Sat May 21 09:58:56 2016
 
 @author: James
 """
-from sklearn import linear_model,svm,ensemble
+from sklearn import linear_model,svm,ensemble,tree,metrics
 from statsmodels.tsa import stattools
 import numpy as np
 from scipy import stats
@@ -20,6 +20,9 @@ class Classifier:
     def __init__(self,phi):
         self.phi = phi
         self.predictor = None
+        self.quiet = False
+    def setQuiet(self,quiet):
+        self.quiet = quiet
     def isTrained(self):
         return self.predictor == None
     def extract_features(self,samples):
@@ -160,18 +163,7 @@ class Classifier:
             clf2.fit(np.reshape(X_train,(m*nsub,nfeat)),np.repeat(Y_train,nsub));
             self.tie_predictor=clf2;
             """
-
-            train_actual = Y_train;
-            train_hat = self.make_batch_prediction_ensemble(X_train);
-
-            print("Finished Training Classifier with Training Error:---------------")
-            for region in range(7):
-                actual = train_actual[train_actual == region]
-                pred = train_hat[train_actual == region]
-                err = 1 - float(sum(actual == pred))/len(actual)
-                print "Error for region %d: %.4f" % (region,err)
-            totalErr = 1 - float(sum(train_actual == train_hat))/len(train_actual)
-            print "---- Total Training Error: %.4f" % totalErr
+        totalErr = self._helperPrintTrainingError(train_actual,train_hat)
         return totalErr
 
     def trainSVMBatch(self,train_samples,X_train=None,Y_train=None,num_subs=None,
@@ -192,24 +184,8 @@ class Classifier:
         #if X_train is None or Y_train is None or num_subs is None:
         if X_train is None or Y_train is None:
             n_train = len(train_samples);
-
-            subsamp_per = train_samples[0].Nsub;
-
-            X_train = np.zeros((subsamp_per*n_train,self.phi.LEN))
-            Y_train = np.zeros(subsamp_per*n_train,dtype=np.int8);
-
-            k = 0
-            print("Running feature extraction...")
-            nupdate = int(n_train/10);
-            for i,sample in enumerate(train_samples):
-                if i%nupdate==0:
-                    print("%d%%..."%((100*i)/n_train));
-                phi_X = self.phi.get_phi(sample)
-                numSamples,_ = phi_X.shape
-                X_train[k:k+numSamples,:] = phi_X
-                Y_train[k:k+numSamples] = sample.region
-                k += numSamples
-            print("Finished feature extraction. Running fitting...");
+            (X_train,Y_train) = self._helperExtractSampleFeatures(train_samples)
+            print("Training SVM Classifier...")
 
             if kernel=='rbf':
                 clf = svm.SVC(kernel=kernel,C=C,gamma=gamma,probability=probability)
@@ -227,15 +203,6 @@ class Classifier:
             for i,sample in enumerate(train_samples):
                 train_actual[i] = sample.region
                 train_hat[i] = self.make_prediction(sample)
-
-            print("Finished Training Classifier with Training Error:---------------")
-            for region in range(7):
-                actual = train_actual[train_actual == region]
-                pred = train_hat[train_actual == region]
-                err = 1 - float(sum(actual == pred))/len(actual)
-                print "Error for region %d: %.4f" % (region,err)
-            totalErr = 1 - float(sum(train_actual == train_hat))/len(train_actual)
-            print "---- Total Training Error: %.4f" % totalErr
         else:
             m, nsub, nfeat = np.shape(X_train);
 
@@ -258,15 +225,7 @@ class Classifier:
                 train_actual[i] = Y_train[k];
                 k+=nsub
             """
-
-            print("Finished Training Classifier with Training Error:---------------")
-            for region in range(7):
-                actual = train_actual[train_actual == region]
-                pred = train_hat[train_actual == region]
-                err = 1 - float(sum(actual == pred))/len(actual)
-                print "Error for region %d: %.4f" % (region,err)
-            totalErr = 1 - float(sum(train_actual == train_hat))/len(train_actual)
-            print "---- Total Training Error: %.4f" % totalErr
+        totalErr = self._helperPrintTrainingError(train_actual,train_hat)
         return totalErr
 
 
@@ -285,25 +244,9 @@ class Classifier:
 
         #if X_train is None or Y_train is None or num_subs is None:
         if X_train is None or Y_train is None:
-            n_train = len(train_samples);
-
-            subsamp_per = train_samples[0].Nsub;
-
-            X_train = np.zeros((subsamp_per*n_train,self.phi.LEN))
-            Y_train = np.zeros(subsamp_per*n_train,dtype=np.int8);
-
-            k = 0
-            print("Running feature extraction...")
-            nupdate = int(n_train/10);
-            for (i,sample) in enumerate(train_samples):
-                if i%nupdate==0:
-                    print("%d%%..."%((100*i)/n_train));
-                phi_X = self.phi.get_phi(sample)
-                numSamples,_ = phi_X.shape
-                X_train[k:k+numSamples,:] = phi_X
-                Y_train[k:k+numSamples] = sample.region
-                k += numSamples
-            print("Finished feature extraction. Running fitting...");
+            n_train = len(train_samples)
+            (X_train,Y_train) = self._helperExtractSampleFeatures(train_samples)
+            print("Training Logistic Classifier...")
 
             log_reg = linear_model.LogisticRegression(C=C)
             log_reg.fit(X_train,Y_train)
@@ -316,45 +259,141 @@ class Classifier:
             for i,sample in enumerate(train_samples):
                 train_actual[i] = sample.region
                 train_hat[i] = self.make_prediction(sample)
-
-            print("Finished Training Classifier with Training Error:---------------")
-            for region in range(7):
-                actual = train_actual[train_actual == region]
-                pred = train_hat[train_actual == region]
-                err = 1 - float(sum(actual == pred))/len(actual)
-                print "Error for region %d: %.4f" % (region,err)
-            totalErr = 1 - float(sum(train_actual == train_hat))/len(train_actual)
-            print "---- Total Training Error: %.4f" % totalErr
         else:
             m, nsub, nfeat = np.shape(X_train);
-            #n_train = len(num_subs)
             log_reg = linear_model.LogisticRegression(C=C)
-            #log_reg.fit(X_train,Y_train)
             log_reg.fit( np.reshape(X_train,(m*nsub,nfeat)),np.repeat(Y_train,nsub) )
 
             self.predictor = log_reg
 
-            #train_actual = np.zeros(n_train)
             train_actual = Y_train;
             train_hat = self.make_batch_prediction(X_train,None);
-            #train_hat = self.make_batch_prediction(X_train,num_subs)
             """
             k = 0
             for i,nsub in enumerate(num_subs):
                 train_actual[i] = Y_train[k];
                 k+=nsub
             """
+        totalErr = self._helperPrintTrainingError(train_actual,train_hat)
+        return totalErr
+        
+    def trainDecisionTreeBatch(self,train_samples, X_train=None,Y_train=None,num_subs=None,
+                               criterion="gini",splitter="best",max_features=None,
+                               max_depth=None,max_leaf_nodes=None):
+        if X_train is None or Y_train is None:
+            n_train = len(train_samples)
+            (X_train,Y_train) = self._helperExtractSampleFeatures(train_samples)
+            print("Training Logistic Classifier...")
 
+            dt_clf = tree.DecisionTreeClassifier(criterion=criterion,splitter=splitter,max_features=max_features,
+                               max_depth=max_depth,max_leaf_nodes=max_leaf_nodes)
+            dt_clf.fit(X_train,Y_train)
+
+            self.predictor = dt_clf
+
+            train_actual = np.zeros((n_train,1))
+            train_hat = np.zeros((n_train,1))
+
+            for i,sample in enumerate(train_samples):
+                train_actual[i] = sample.region
+                train_hat[i] = self.make_prediction(sample)
+        else:
+            m, nsub, nfeat = np.shape(X_train);
+            dt_clf = tree.DecisionTreeClassifier(criterion=criterion,splitter=splitter,max_features=max_features,
+                               max_depth=max_depth,max_leaf_nodes=max_leaf_nodes)
+            dt_clf.fit( np.reshape(X_train,(m*nsub,nfeat)),np.repeat(Y_train,nsub) )
+
+            self.predictor = dt_clf
+
+            train_actual = Y_train;
+            train_hat = self.make_batch_prediction(X_train,None);
+            """
+            k = 0
+            for i,nsub in enumerate(num_subs):
+                train_actual[i] = Y_train[k];
+                k+=nsub
+            """
+        totalErr = self._helperPrintTrainingError(train_actual,train_hat)
+        return totalErr
+        
+    def trainRandomForestBatch(self,train_samples, X_train=None,Y_train=None,num_subs=None,
+                               n_estimators=10,criterion="gini",splitter="best",
+                               max_features=None,max_depth=None,max_leaf_nodes=None,
+                               n_jobs=1):
+        if X_train is None or Y_train is None:
+            n_train = len(train_samples)
+            (X_train,Y_train) = self._helperExtractSampleFeatures(train_samples)
+            print("Training Logistic Classifier...")
+
+            dt_clf = ensemble.RandomForestClassifier(n_estimators=n_estimators,criterion=criterion,
+                                                     splitter=splitter,max_features=max_features,
+                                                     max_depth=max_depth,max_leaf_nodes=max_leaf_nodes,
+                                                     n_jobs=n_jobs)
+            dt_clf.fit(X_train,Y_train)
+
+            self.predictor = dt_clf
+
+            train_actual = np.zeros((n_train,1))
+            train_hat = np.zeros((n_train,1))
+
+            for i,sample in enumerate(train_samples):
+                train_actual[i] = sample.region
+                train_hat[i] = self.make_prediction(sample)
+        else:
+            m, nsub, nfeat = np.shape(X_train);
+            dt_clf = tree.DecisionTreeClassifier(criterion=criterion,splitter=splitter,max_features=max_features,
+                               max_depth=max_depth,max_leaf_nodes=max_leaf_nodes)
+            dt_clf.fit( np.reshape(X_train,(m*nsub,nfeat)),np.repeat(Y_train,nsub) )
+
+            self.predictor = dt_clf
+
+            train_actual = Y_train;
+            train_hat = self.make_batch_prediction(X_train,None);
+            """
+            k = 0
+            for i,nsub in enumerate(num_subs):
+                train_actual[i] = Y_train[k];
+                k+=nsub
+            """
+        totalErr = self._helperPrintTrainingError(train_actual,train_hat)
+        return totalErr
+        
+    def _helperExtractSampleFeatures(self,train_samples):        
+        n_train = len(train_samples);
+
+        subsamp_per = train_samples[0].Nsub;
+
+        X_train = np.zeros((subsamp_per*n_train,self.phi.LEN))
+        Y_train = np.zeros(subsamp_per*n_train,dtype=np.int8);
+
+        k = 0
+        print("Running feature extraction...")
+        nupdate = int(n_train/10);
+        for (i,sample) in enumerate(train_samples):
+            if i%nupdate==0:
+                print("%d%%..."%((100*i)/n_train));
+            phi_X = self.phi.get_phi(sample)
+            numSamples,_ = phi_X.shape
+            X_train[k:k+numSamples,:] = phi_X
+            Y_train[k:k+numSamples] = sample.region
+            k += numSamples
+        print("Finished feature extraction.")
+        return (X_train,Y_train)
+    def _helperPrintTrainingError(self,train_actual,train_hat):
+        if not self.quiet:
             print("Finished Training Classifier with Training Error:---------------")
-            for region in range(7):
-                actual = train_actual[train_actual == region]
-                pred = train_hat[train_actual == region]
-                err = 1 - float(sum(actual == pred))/len(actual)
+        for region in range(7):
+            actual = train_actual[train_actual == region]
+            pred = train_hat[train_actual == region]
+            err = 1 - float(sum(actual == pred))/len(actual)
+            if not self.quiet:
                 print "Error for region %d: %.4f" % (region,err)
-            totalErr = 1 - float(sum(train_actual == train_hat))/len(train_actual)
+        totalErr = 1 - float(sum(train_actual == train_hat))/len(train_actual)
+        if not self.quiet:
             print "---- Total Training Error: %.4f" % totalErr
         return totalErr
-
+        
+        
     def testClassifierEnsemble(self, test_samples,X_test=None,Y_test=None):
         if self.predictor == None:
             raise ValueError("Error: This classifier has not been trained yet.")
@@ -404,16 +443,17 @@ class Classifier:
 
 
         if get_conf_mat:
-            conf_mat = np.zeros((7,7));
+#            conf_mat = np.zeros((7,7));
+            conf_mat = metrics.confusion_matrix(test_actual,test_hat)
         print("-----------------------------------------------------")
         print("-------------------Testing Error:-------------------")
         for region in range(7):
             actual = test_actual[test_actual == region]
             pred = test_hat[test_actual == region]
-            if get_conf_mat:
-                for jreg in range(7):
-                    conf_mat[region,jreg] = np.sum(np.round(pred==jreg));
-                conf_mat[region,:] = conf_mat[region,:]/len(actual);
+#            if get_conf_mat:
+#                for jreg in range(7):
+#                    conf_mat[region,jreg] = np.sum(np.round(pred==jreg));
+#                conf_mat[region,:] = conf_mat[region,:]/len(actual);
             if len(actual)==0:
                 print("  ->No test samples from Region %d"%region)
                 continue
@@ -428,4 +468,23 @@ class Classifier:
         if return_rec:
             return (totalErr,test_actual,test_hat,vote_rec)
         return totalErr
+        
+def train_test_split_audio(X_subs, Y, seed=0, frac_test=0.3):
+    '''
+    Modifies the train_test_split function of sklearn.cross_validation to 
+    handle our subsample/sample distinction.
+    '''
+    #Shuffle up the order
+    (nsamp,_,_) = X_subs.shape
+    inds = range(nsamp);
+    np.random.shuffle(inds);
+    num_test = int(round(frac_test*nsamp));
+
+    X_train = X_subs[inds[num_test:],:,:];
+    Y_train = Y[inds[num_test:]];
+
+    X_test = X_subs[inds[:num_test],:,:];
+    Y_test = Y[inds[:num_test]];
+    
+    return (X_train,Y_train,X_test,Y_test)
 
