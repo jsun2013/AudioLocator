@@ -163,6 +163,8 @@ class Classifier:
             clf2.fit(np.reshape(X_train,(m*nsub,nfeat)),np.repeat(Y_train,nsub));
             self.tie_predictor=clf2;
             """
+            train_actual = Y_train;
+            train_hat = self.make_batch_prediction_ensemble(X_train);
         totalErr = self._helperPrintTrainingError(train_actual,train_hat)
         return totalErr
 
