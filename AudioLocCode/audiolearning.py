@@ -39,15 +39,15 @@ class Classifier:
         #X = np.zeros((subsamp_per*n_train,self.phi.LEN))
         #Y= np.zeros(subsamp_per*n_train,dtype=np.int8);
         #num_subs = np.zeros(n_train,dtype=np.int8)
-        print("Running feature extraction...")
-        nupdate = int(n_train/10);
+        #print("Running feature extraction...")
+#        nupdate = int(n_train/10);
         for i,sample in enumerate(samples):
             phi_X = self.phi.get_phi(sample)
             #numSamples,_ = phi_X.shape
             X[i,:,:] = phi_X
             Y[i] = sample.region
-            if i%nupdate==0:
-                print("%d%%..."%((100*i)/n_train));
+            #if i%nupdate==0:
+                #print("%d%%..."%((100*i)/n_train));
             #num_subs[i] = numSamples
             #k += numSamples
         #return (X,Y,num_subs)
@@ -87,7 +87,7 @@ class Classifier:
         return hat
 
 
-    def make_batch_prediction(self,phi_x,num_subs,return_rec=False,probability=False):
+    def make_batch_prediction(self,phi_x,num_subs=None,return_rec=False,probability=False):
         '''
         phi_x is a matrix: (samples) x (subsamples) x (features)
 
@@ -360,6 +360,44 @@ class Classifier:
         totalErr = self._helperPrintTrainingError(train_actual,train_hat)
         return totalErr
         
+    def trainBoostedDecisionStump(self,train_samples, X_train=None,Y_train=None,num_subs=None,
+                               n_estimators=100,learning_rate=1):
+        if X_train is None or Y_train is None:
+            n_train = len(train_samples)
+            (X_train,Y_train) = self._helperExtractSampleFeatures(train_samples)
+            print("Training Logistic Classifier...")
+
+            bdt_clf = ensemble.AdaBoostClassifier(tree.DecisionTreeClassifier(max_depth=2),
+                                                 n_estimators=n_estimators,learning_rate=learning_rate)
+            bdt_clf.fit(X_train,Y_train)
+
+            self.predictor = bdt_clf
+
+            train_actual = np.zeros((n_train,1))
+            train_hat = np.zeros((n_train,1))
+
+            for i,sample in enumerate(train_samples):
+                train_actual[i] = sample.region
+                train_hat[i] = self.make_prediction(sample)
+        else:
+            m, nsub, nfeat = np.shape(X_train);
+            bdt_clf =  ensemble.AdaBoostClassifier(tree.DecisionTreeClassifier(max_depth=2),
+                                                 n_estimators=n_estimators,learning_rate=learning_rate)
+            bdt_clf.fit( np.reshape(X_train,(m*nsub,nfeat)),np.repeat(Y_train,nsub) )
+
+            self.predictor = bdt_clf
+
+            train_actual = Y_train;
+            train_hat = self.make_batch_prediction(X_train,None);
+            """
+            k = 0
+            for i,nsub in enumerate(num_subs):
+                train_actual[i] = Y_train[k];
+                k+=nsub
+            """
+        totalErr = self._helperPrintTrainingError(train_actual,train_hat)
+        return totalErr
+        
     def _helperExtractSampleFeatures(self,train_samples):        
         n_train = len(train_samples);
 
@@ -369,11 +407,11 @@ class Classifier:
         Y_train = np.zeros(subsamp_per*n_train,dtype=np.int8);
 
         k = 0
-        print("Running feature extraction...")
-        nupdate = int(n_train/10);
+#        print("Running feature extraction...")
+        #nupdate = int(n_train/10);
         for (i,sample) in enumerate(train_samples):
-            if i%nupdate==0:
-                print("%d%%..."%((100*i)/n_train));
+#            if i%nupdate==0:
+#                print("%d%%..."%((100*i)/n_train));
             phi_X = self.phi.get_phi(sample)
             numSamples,_ = phi_X.shape
             X_train[k:k+numSamples,:] = phi_X

@@ -86,14 +86,16 @@ if __name__ == "__main__":
     conf_mat = np.zeros((7,7));
     for i_iter in range(iters):
         #Shuffle up the order
-        inds = range(nsamp);
-        np.random.shuffle(inds);
-
-        X_train = X[inds[num_test:],:,:];
-        Y_train = Y[inds[num_test:]];
-
-        X_test = X[inds[:num_test],:,:];
-        Y_test = Y[inds[:num_test]];
+#        inds = range(nsamp);
+#        np.random.shuffle(inds);
+#
+#        X_train = X[inds[num_test:],:,:];
+#        Y_train = Y[inds[num_test:]];
+#
+#        X_test = X[inds[:num_test],:,:];
+#        Y_test = Y[inds[:num_test]];
+        X_train,Y_train,X_test,Y_test = audiolearning.train_test_split_audio(X,Y,frac_test=frac_test)
+    
 
         extractor.trainEnsemble1(train_samples=None, X_train=X_train, Y_train=Y_train,kernel='rbf',
                                     C=50000,gamma=1/(10000*float(myPhi.LEN)),probability=USE_PROB);

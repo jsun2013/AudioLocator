@@ -31,10 +31,10 @@ FWIN = 25;
 TWIN = 1;
 NPERSEG = 1024;
 TSUB = 1; #NOTE: this will be used only for training. Will experiment with test format later.
-NSUB = 1;
+NSUB = 2;
 #Last day of 'training' data
 MONTH = 5;
-DAY = 16;
+DAY = 29;
 
 #Save off training data through 05/16
 train_file = 'trainingPhi_%02i%02i_%i_%i_%i_%i_%i_%i.pkl'%(MONTH,DAY,TSUB,NSUB,FFT_BINS,FWIN,TWIN,NPERSEG);
@@ -42,8 +42,8 @@ train_file = 'trainingPhi_%02i%02i_%i_%i_%i_%i_%i_%i.pkl'%(MONTH,DAY,TSUB,NSUB,F
 #OTHER OPTIONS
 METHOD = 'rbf' #'rbf' or 'logistic' or 'linear'
 #TODO: ^not implemented!!
-GET_CURVE=False
-USE_PROB = False
+GET_CURVE=True
+USE_PROB = True
 ENSEMBLE=True
 iters = 10;
 
@@ -95,8 +95,8 @@ if __name__ == "__main__":
     if os.path.exists(train_file):
         with open(train_file,"rb") as myPkl:
             thisData = pickle.load(myPkl);
-        X_train = thisData.X;
-        Y_train = thisData.Y;
+        X_train = thisData.X_samples;
+        Y_train = thisData.Y_samples;
     else:
         all_samples = samples.getAllSamples(Tsub=TSUB,Nsub=NSUB,READ_IN=False) #
         train_samples = np.empty((0));
@@ -141,6 +141,8 @@ if __name__ == "__main__":
         thisData.Y=Y_test;
         with open(test_file,"wb") as myPkl:
             pickle.dump(thisData,myPkl);
+            
+            
     if GET_CURVE==False:
         TEST_NSUB = 10;
         (X_test,Y_test) = reshape_into_subsamples(X_test,Y_test,TSUB,TEST_NSUB);

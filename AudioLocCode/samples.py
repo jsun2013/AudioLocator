@@ -211,6 +211,20 @@ def getAllSamples(Tsub=None,Nsub=None,key=None,val=None,READ_IN=True):
     print "Imported %i Supersamples"%i
     return samples;
 
+def getGeneralizationTestSet(month,day,Tsub=None,Nsub=None,READ_IN=True):
+    all_samples = getAllSamples(Tsub=Tsub,Nsub=Nsub,READ_IN=READ_IN) #
+    train_samples = np.empty((0));
+    #Choose only data up to this date
+    for isample in all_samples:
+        if isample.date.month < month or (isample.date.month == month and isample.date.day <= day):
+            train_samples = np.append(train_samples,np.array([isample]))
+    
+    test_samples = np.empty((0));
+    for isample in all_samples:
+        if isample.date.month > month or (isample.date.month == month and isample.date.day > day):
+            test_samples = np.append(test_samples,np.array([isample]))
+    return train_samples,test_samples
+
 def findSamples(key,val):
     #Find samples based on the value of a key, such as day of week, and time range
     #TODO

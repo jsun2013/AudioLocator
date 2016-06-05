@@ -252,7 +252,7 @@ def getSampleMFCC(sample, nceps=13):
     ceps = np.zeros((sample.Nsub,nceps))
     subsamples = sample.getSubsamples()
     for j,data in enumerate(subsamples):
-        temp = features.mfcc(data,fs=sample.waveparms.fs,nceps=nceps)[0]
+        temp = features.mfcc(data,nwin=1024,fs=sample.waveparms.fs,nceps=nceps)[0]
         temp[~np.isfinite(temp)] = float('inf')
         min_val = np.amin(temp)
         temp[~np.isfinite(temp)] = -2*min_val
@@ -268,7 +268,7 @@ def getSignalACF(s,acflags=40):
 #    return binned_statistic(full_acf,full_acf,bins=acflags+1)[0]
 
 def getSignalMFCC(s,nceps=13,fs=44100):
-    temp = features.mfcc(s,fs=fs,nceps=nceps)[0]
+    temp = features.mfcc(s,nwin=1024,fs=fs,nceps=nceps)[0]
     temp[~np.isfinite(temp)] = 0
     return np.mean(temp,0)
 
