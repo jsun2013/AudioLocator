@@ -103,7 +103,8 @@ if __name__ == "__main__":
         for (i,jlabel) in enumerate(test_actual):
             if test_hat[i]==jlabel:
                 #Correct Prediction
-                this_count = np.bincount(vote_rec[i]);
+                #this_count = np.bincount(vote_rec[i]);
+                this_count = vote_rec[i]; #Now returning the bincounts directly
                 hit0 = this_count[jlabel];
                 this_count[jlabel]=0;
                 hit1 = max(this_count); #Runner up vote.
@@ -111,7 +112,8 @@ if __name__ == "__main__":
                 vote_rec_per[jlabel][0] = np.append(vote_rec_per[jlabel][0],np.array([[hit0, hit1]]),axis=0);
             else:
                 #Incorrect Prediction
-                this_count = np.bincount(vote_rec[i]);
+                #this_count = np.bincount(vote_rec[i]);
+                this_count = vote_rec[i]; #Now returning the bincounts directly
                 #hit1 = max(this_count); #Winning vote.
                 hit0 = this_count[test_hat[i]]; #Winning vote
                 this_count[test_hat[i]]=0;

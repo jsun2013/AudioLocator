@@ -29,7 +29,7 @@ TWIN = 1;
 NPERSEG = 1024;
 TSUB = 1;
 NSUB = 10;
-NFFT = 180; #Resolution used in fwdSearch
+NFFT = 80; #Resolution used in fwdSearch
 NSEL = 20; #Number of bins to use, capped out at number generated in fwdSearch
 
 feat_file = "fwdSearch_%i_%i.pkl"%(NFFT,40);

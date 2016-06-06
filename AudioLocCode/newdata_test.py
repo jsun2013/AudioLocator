@@ -31,21 +31,24 @@ FWIN = 25;
 TWIN = 1;
 NPERSEG = 1024;
 TSUB = 1; #NOTE: this will be used only for training. Will experiment with test format later.
-NSUB = 2;
+NSUB = 60; #This is just used for feature generation, doesn't really matter.
+TEST_NSUB = 10;
 #Last day of 'training' data
 MONTH = 5;
 DAY = 29;
 
-#Save off training data through 05/16
-train_file = 'trainingPhi_%02i%02i_%i_%i_%i_%i_%i_%i.pkl'%(MONTH,DAY,TSUB,NSUB,FFT_BINS,FWIN,TWIN,NPERSEG);
 
 #OTHER OPTIONS
 METHOD = 'rbf' #'rbf' or 'logistic' or 'linear'
 #TODO: ^not implemented!!
-GET_CURVE=True
-USE_PROB = True
+GET_CURVE=False
+USE_PROB = False
 ENSEMBLE=True
-iters = 10;
+iters = 20;
+
+#Save off training data through 05/16
+train_file = 'trainingPhi_%02i%02i_%i_%i_%i_%i_%i_%i.pkl'%(MONTH,DAY,TSUB,NSUB,FFT_BINS,FWIN,TWIN,NPERSEG);
+
 
 class phi1:
     LEN = 0;
@@ -60,7 +63,6 @@ class phi1:
         down into samples. Each row of the returned value corresponds to a sample
         in the super sample.
         '''
-
         XSPED = spectral.getSupersampleSPED(sample,FFT_BINS,fwin=FWIN,twin = TWIN,nperseg = NPERSEG,spacing="log")
         XMFCC = spectral.getSampleMFCC(sample)
         return np.hstack((XMFCC,XSPED))
@@ -95,8 +97,8 @@ if __name__ == "__main__":
     if os.path.exists(train_file):
         with open(train_file,"rb") as myPkl:
             thisData = pickle.load(myPkl);
-        X_train = thisData.X_samples;
-        Y_train = thisData.Y_samples;
+        X_train = thisData.X;
+        Y_train = thisData.Y;
     else:
         all_samples = samples.getAllSamples(Tsub=TSUB,Nsub=NSUB,READ_IN=False) #
         train_samples = np.empty((0));
@@ -141,10 +143,7 @@ if __name__ == "__main__":
         thisData.Y=Y_test;
         with open(test_file,"wb") as myPkl:
             pickle.dump(thisData,myPkl);
-            
-            
     if GET_CURVE==False:
-        TEST_NSUB = 10;
         (X_test,Y_test) = reshape_into_subsamples(X_test,Y_test,TSUB,TEST_NSUB);
         totalErr = 0;
         for j in range(iters):
@@ -161,7 +160,10 @@ if __name__ == "__main__":
             (jX_test,jY_test) = reshape_into_subsamples(X_test,Y_test,TSUB,test_nsub);
             totalErr = 0;
             for j in range(iters):
-                totalErr += extractor.testClassifier(test_samples=None,X_test=jX_test,Y_test=jY_test,probability=USE_PROB);
+                if ENSEMBLE:
+                    totalErr += extractor.testClassifierEnsemble(test_samples=None,X_test=X_test,Y_test=Y_test);
+                else:
+                    totalErr += extractor.testClassifier(test_samples=None,X_test=jX_test,Y_test=jY_test,probability=USE_PROB);
             test_nsub_errs[i_nsub] = totalErr/iters;
         fig = plt.figure();
         plt.scatter(test_nsub_arr,test_nsub_errs);

@@ -44,7 +44,7 @@ elif region == 'Tresidder':
 elif region == 'Arrillaga':
     recording1 = '20160516-151425'; #Weights
     rec1_title = "Phone1 Monday, Location 1"
-    recording2 = '20160516-150944'; #Fraiche
+    recording2 = '20160516-150944'; #Cardio
     rec2_title = "Phone1 Monday, Location 2"
 
     recording3 = '20160515-185831'; #Weights

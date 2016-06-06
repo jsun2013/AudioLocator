@@ -10,6 +10,8 @@ import numpy as np
 from scipy import stats
 import warnings
 
+ENS_WEIGHT = 1.45;
+
 class Classifier:
     '''
     Classifier class. Extracts features/makes a prediction based on input audio
@@ -39,15 +41,16 @@ class Classifier:
         #X = np.zeros((subsamp_per*n_train,self.phi.LEN))
         #Y= np.zeros(subsamp_per*n_train,dtype=np.int8);
         #num_subs = np.zeros(n_train,dtype=np.int8)
-        #print("Running feature extraction...")
-#        nupdate = int(n_train/10);
+        print("Running feature extraction...")
+        nupdate = int(n_train/10);
+        nupdate = max([1,nupdate]);
         for i,sample in enumerate(samples):
             phi_X = self.phi.get_phi(sample)
             #numSamples,_ = phi_X.shape
             X[i,:,:] = phi_X
             Y[i] = sample.region
-            #if i%nupdate==0:
-                #print("%d%%..."%((100*i)/n_train));
+            if i%nupdate==0:
+                print("%d%%..."%((100*i)/n_train));
             #num_subs[i] = numSamples
             #k += numSamples
         #return (X,Y,num_subs)
@@ -56,34 +59,42 @@ class Classifier:
         phiX = self.phi.get_phi(X)
         votes = self.predictor.predict(phiX)
         return stats.mode(votes).mode[0]
-    def make_batch_prediction_ensemble(self,phi_x):
+    def make_batch_prediction_ensemble(self,phi_x,return_rec=False):
         m, nsub, nfeat = np.shape(phi_x);
         hat = np.zeros(m);
         sub_hat = self.predictor.predict(np.reshape(phi_x,(m*nsub,nfeat)));
-        #TODO:return_rec
+        if return_rec:
+            vote_rec = [];
         for i in range(m):
             votes = sub_hat[i*nsub:(i+1)*nsub]
-            vote_bins = np.bincount(votes);
+            vote_bins = np.bincount(votes.astype(int));
             vote_bins = np.append(vote_bins,np.zeros(7-np.size(vote_bins)));
             vote_bins_sort = np.sort(vote_bins);
             vote_bins_sort = vote_bins_sort[::-1]; #Descending
-            #if vote_bins_sort[0] - vote_bins_sort[1] <= 1:
+            if vote_bins_sort[0] - vote_bins_sort[1] <= 1:
                 #Small margit vote. use back-up predictor
-            if vote_bins_sort[0] - vote_bins_sort[1] == 1:
+            #if vote_bins_sort[0] - vote_bins_sort[1] == 1:
                 #Retest ties
                 tie_votes = self.tie_predictor.predict(phi_x[i,:,:]);
-                tie_vote_bins = np.bincount(tie_votes) #Ensemble: aggregate votes
+                tie_vote_bins = np.bincount(tie_votes.astype(int)) #Ensemble: aggregate votes
                 tie_vote_bins = np.append(tie_vote_bins,np.zeros(7-np.size(tie_vote_bins)));
-                total_vote_bins = tie_vote_bins + 1.1*vote_bins; #tie breaker is rbf
+                total_vote_bins = tie_vote_bins + ENS_WEIGHT*vote_bins; #tie breaker is rbf
                 tie_maxvote = np.max(total_vote_bins); #Get highest vote total
                 tie_argmaxx = np.where(np.array(total_vote_bins)==tie_maxvote)[0]; #Find all regions with that vote total
+                if return_rec:
+                    vote_rec.append(total_vote_bins);
                 if np.size(tie_argmaxx)>1:
                     hat[i] = np.random.choice(tie_argmaxx);
                 else:
                     #No Tie
                     hat[i] = tie_argmaxx[0];
+                #TODO: Get statistics of how often this helps
             else:
                 hat[i]=np.argmax(vote_bins);
+                if return_rec:
+                    vote_rec.append(vote_bins);
+        if return_rec:
+            return (hat,vote_rec);
         return hat
 
 
@@ -113,7 +124,7 @@ class Classifier:
             else:
             """
             votes = sub_hat[i*nsub:(i+1)*nsub]
-            vote_bins = np.bincount(votes);
+            vote_bins = np.bincount(votes.astype(int));
             maxvote = np.max(vote_bins); #Get highest vote total
             argmaxx = np.where(np.array(vote_bins)==maxvote)[0]; #Find all regions with that vote total
             if np.size(argmaxx)>1:
@@ -130,7 +141,7 @@ class Classifier:
                 hat[i] = argmaxx[0];
 
             if return_rec:
-                vote_rec.append(votes);
+                vote_rec.append(vote_bins);
 
         if return_rec:
             return( hat, vote_rec);
@@ -164,7 +175,8 @@ class Classifier:
             self.tie_predictor=clf2;
             """
             train_actual = Y_train;
-            train_hat = self.make_batch_prediction_ensemble(X_train);
+            #train_hat = self.make_batch_prediction(X_train,num_subs)
+            train_hat = self.make_batch_prediction(X_train,None);
         totalErr = self._helperPrintTrainingError(train_actual,train_hat)
         return totalErr
 
@@ -192,7 +204,7 @@ class Classifier:
             if kernel=='rbf':
                 clf = svm.SVC(kernel=kernel,C=C,gamma=gamma,probability=probability)
             elif kernel=='linear':
-                clf = svm.LinearSVC(C=C,loss='hinge',probability=probability)
+                clf = svm.LinearSVC(C=C,loss='hinge')
 
             clf.fit(X_train,Y_train)
 
@@ -211,7 +223,7 @@ class Classifier:
             if kernel=='rbf':
                 clf = svm.SVC(kernel=kernel,C=C,gamma=gamma,probability=probability)
             elif kernel=='linear':
-                clf = svm.LinearSVC(C=C,loss='hinge',probability=probability)
+                clf = svm.LinearSVC(C=C,loss='hinge')
             #clf.fit(X_train,Y_train)
             clf.fit(np.reshape(X_train,(m*nsub,nfeat)),np.repeat(Y_train,nsub));
 
@@ -270,15 +282,10 @@ class Classifier:
 
             train_actual = Y_train;
             train_hat = self.make_batch_prediction(X_train,None);
-            """
-            k = 0
-            for i,nsub in enumerate(num_subs):
-                train_actual[i] = Y_train[k];
-                k+=nsub
-            """
+
         totalErr = self._helperPrintTrainingError(train_actual,train_hat)
         return totalErr
-        
+
     def trainDecisionTreeBatch(self,train_samples, X_train=None,Y_train=None,num_subs=None,
                                criterion="gini",splitter="best",max_features=None,
                                max_depth=None,max_leaf_nodes=None):
@@ -317,7 +324,7 @@ class Classifier:
             """
         totalErr = self._helperPrintTrainingError(train_actual,train_hat)
         return totalErr
-        
+
     def trainRandomForestBatch(self,train_samples, X_train=None,Y_train=None,num_subs=None,
                                n_estimators=10,criterion="gini",splitter="best",
                                max_features=None,max_depth=None,max_leaf_nodes=None,
@@ -359,16 +366,15 @@ class Classifier:
             """
         totalErr = self._helperPrintTrainingError(train_actual,train_hat)
         return totalErr
-        
     def trainBoostedDecisionStump(self,train_samples, X_train=None,Y_train=None,num_subs=None,
-                               n_estimators=100,learning_rate=1):
+                          n_estimators=100,learning_rate=1):
         if X_train is None or Y_train is None:
             n_train = len(train_samples)
             (X_train,Y_train) = self._helperExtractSampleFeatures(train_samples)
             print("Training Logistic Classifier...")
 
             bdt_clf = ensemble.AdaBoostClassifier(tree.DecisionTreeClassifier(max_depth=2),
-                                                 n_estimators=n_estimators,learning_rate=learning_rate)
+                                                n_estimators=n_estimators,learning_rate=learning_rate)
             bdt_clf.fit(X_train,Y_train)
 
             self.predictor = bdt_clf
@@ -382,23 +388,17 @@ class Classifier:
         else:
             m, nsub, nfeat = np.shape(X_train);
             bdt_clf =  ensemble.AdaBoostClassifier(tree.DecisionTreeClassifier(max_depth=2),
-                                                 n_estimators=n_estimators,learning_rate=learning_rate)
+                                            n_estimators=n_estimators,learning_rate=learning_rate)
             bdt_clf.fit( np.reshape(X_train,(m*nsub,nfeat)),np.repeat(Y_train,nsub) )
 
             self.predictor = bdt_clf
 
             train_actual = Y_train;
             train_hat = self.make_batch_prediction(X_train,None);
-            """
-            k = 0
-            for i,nsub in enumerate(num_subs):
-                train_actual[i] = Y_train[k];
-                k+=nsub
-            """
         totalErr = self._helperPrintTrainingError(train_actual,train_hat)
         return totalErr
-        
-    def _helperExtractSampleFeatures(self,train_samples):        
+
+    def _helperExtractSampleFeatures(self,train_samples):
         n_train = len(train_samples);
 
         subsamp_per = train_samples[0].Nsub;
@@ -407,11 +407,11 @@ class Classifier:
         Y_train = np.zeros(subsamp_per*n_train,dtype=np.int8);
 
         k = 0
-#        print("Running feature extraction...")
-        #nupdate = int(n_train/10);
+        print("Running feature extraction...")
+        nupdate = int(n_train/10);
         for (i,sample) in enumerate(train_samples):
-#            if i%nupdate==0:
-#                print("%d%%..."%((100*i)/n_train));
+            if i%nupdate==0:
+                print("%d%%..."%((100*i)/n_train));
             phi_X = self.phi.get_phi(sample)
             numSamples,_ = phi_X.shape
             X_train[k:k+numSamples,:] = phi_X
@@ -432,9 +432,9 @@ class Classifier:
         if not self.quiet:
             print "---- Total Training Error: %.4f" % totalErr
         return totalErr
-        
-        
-    def testClassifierEnsemble(self, test_samples,X_test=None,Y_test=None):
+
+
+    def testClassifierEnsemble(self, test_samples,X_test=None,Y_test=None,get_conf_mat = False,return_rec=False):
         if self.predictor == None:
             raise ValueError("Error: This classifier has not been trained yet.")
         #if X_test is None or Y_test is None or num_subs is None:
@@ -442,7 +442,18 @@ class Classifier:
             raise ValueError("trainEnsemble: train-as-you-go not implemented!")
         n_test, nsub, nfeat = np.shape(X_test);
         test_actual=Y_test;
-        test_hat = self.make_batch_prediction_ensemble(X_test);
+        if return_rec:
+            (test_hat,vote_rec) = self.make_batch_prediction_ensemble(X_test,
+                            return_rec=return_rec)
+        else:
+            test_hat = self.make_batch_prediction_ensemble(X_test);
+        if get_conf_mat:
+            conf_mat = np.zeros((7,7));
+            jconf_mat = metrics.confusion_matrix(test_actual,test_hat)
+            conf_mat[:np.shape(jconf_mat)[0],:np.shape(jconf_mat)[1]] = jconf_mat
+            if np.shape(conf_mat)[0] <7:
+                print "UNDERSIZED CONFUSION MATRIX"
+                raise ValueError("UNDERSIZED CONFUSION MATRIX")
         print("-----------------------------------------------------")
         print("-------------------Testing Error:-------------------")
         for region in range(7):
@@ -455,6 +466,12 @@ class Classifier:
             print "Error for region %d: %.4f" % (region,err)
         totalErr = 1 - float(sum(test_actual == test_hat))/n_test
         print "---- Total Testing Error: %.4f" % totalErr
+        if get_conf_mat:
+            if return_rec:
+                return (totalErr,conf_mat,test_actual,test_hat,vote_rec)
+            return (totalErr, conf_mat);
+        if return_rec:
+            return (totalErr,test_actual,test_hat,vote_rec)
         return totalErr
 
     def testClassifier(self, test_samples,X_test=None,Y_test=None,get_conf_mat = False,
@@ -471,9 +488,6 @@ class Classifier:
                 test_hat[i] = self.make_prediction(sample)
         else:
             n_test, nsub, nfeat = np.shape(X_test);
-            #n_test = len(num_subs)
-            #test_actual = np.zeros(n_test)
-            #test_hat = self.make_batch_prediction(X_test,num_subs)
             test_actual=Y_test;
             if return_rec:
                 (test_hat,vote_rec) = self.make_batch_prediction(X_test,None,
@@ -508,10 +522,10 @@ class Classifier:
         if return_rec:
             return (totalErr,test_actual,test_hat,vote_rec)
         return totalErr
-        
+
 def train_test_split_audio(X_subs, Y, seed=0, frac_test=0.3):
     '''
-    Modifies the train_test_split function of sklearn.cross_validation to 
+    Modifies the train_test_split function of sklearn.cross_validation to
     handle our subsample/sample distinction.
     '''
     #Shuffle up the order
@@ -525,6 +539,6 @@ def train_test_split_audio(X_subs, Y, seed=0, frac_test=0.3):
 
     X_test = X_subs[inds[:num_test],:,:];
     Y_test = Y[inds[:num_test]];
-    
+
     return (X_train,Y_train,X_test,Y_test)
 
