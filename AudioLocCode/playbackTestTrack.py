@@ -26,7 +26,7 @@ def getStats():
         reader = csv.reader(mycsv);
         for row in reader:
             if row[0] == "User":
-                pass
+                continue
             user = row[0];
             classifier = row[1];
             actual = row[2];
@@ -39,4 +39,19 @@ def getStats():
     print "Classifier error rate = %0.02f%%"%(100.0*float(class_err)/total);
     user_correct= total-user_err
     class_correct = total-class_err
-    return (user_correct,class_correct)
+    return (user_correct,class_correct,total)
+
+def getPreds():
+    user = []
+    clf = []
+    actual = []
+    with open(csv_file,'rb') as mycsv:
+        reader = csv.reader(mycsv);
+        for row in reader:
+            if row[0] == "User":
+                continue
+            user.append(int(row[0]));
+            clf.append(int(row[1]));
+            actual.append(int(row[2]));
+    return (user,clf,actual)        
+    

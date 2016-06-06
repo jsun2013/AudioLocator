@@ -60,8 +60,6 @@
 
 
 
-
-
 % *** MATH PACKAGES ***
 %
 \usepackage{amsmath,float}
@@ -109,12 +107,12 @@ The system also makes use of a few custom libraries developed specifically for t
 \subsection{Signal Flow}\label{Signal Flow}
 The following details the flow of a signal when making a prediction
 \begin{enumerate}
-\item Audio signal is recorded by the Android phone
-\item Android phone encodes the signal as a Wav file
+\item The audio signal is recorded by the Android phone
+\item The android phone encodes the signal as a Wav file
 \item The Wav file enters the Python pipeline as a \texttt{Sample} instance
 \item A trained \texttt{Classifier} instance receives the \texttt{Sample}
 \begin{enumerate}
-\item The \texttt{Sample} is broken down a number of subsamples based on a predetermined audio length for each subsample
+\item The \texttt{Sample} is broken down into subsamples of 1 second in length
 \item A prediction is made on each subsample
 \item The most frequent subsample prediction is output as the overall prediction.
 \end{enumerate}
@@ -126,6 +124,7 @@ A graphical illustration of this is shown in Figure~\ref{fig:bd}:\\
 \caption{System Block Diagram}
 \label{fig:bd}
 \end{figure}
+We have designed the system with this subsample structure so that any audio signal with length greater than 1 second can be an input.
 \subsection{Locations}
 The system is trained to recognize the following 7 locations:
 \begin{enumerate}[label=\arabic*.]
@@ -155,7 +154,28 @@ Initial training data was over a period of 2 days. Data was gathered at each loc
 \item Throw away recording if person recording interferes with the environment in some way (talks to a bystander, causes a bicycle crash, heckles passerby, etc...) 
 \item Split recording into 10-second-long samples
 \end{enumerate}
-In total, we gathered 251 recordings of 1 minute in length, for a total of 1506 data samples of 10 seconds in length. 
+In total, we gathered 251 recordings of 1 minute in length, for a total of 1506 data samples of 10 seconds in length. Even though our system is designed to handle any inputs of length greater than 1 second, we standardized our inputs to be 10 seconds for convenience. 
+
+We also attempted to maintain sample balance amongst the 7 locations while also diversifying sample collection temporally. The distribution of samples by location is in Table~\ref{tbl:locs}. The distribution by day and time is given in Figure~\ref{fig:days}.
+\begin{table}[H]
+\centering
+\caption{\# Samples Gathered at each Location}
+\begin{tabular}{|c|c|c|c|c|c|c|}
+\hline
+\textbf{Rains} & \textbf{Circle} &\textbf{Tressider}&\textbf{Huang}&\textbf{Bytes}&\textbf{Oval}&\textbf{Arrillaga}\\
+\hline
+234& 210& 211 & 222 & 222 & 192 & 216\\
+\hline
+\end{tabular}
+\label{tbl:locs}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\linewidth]{data_distribution}
+\caption{Sample Distribution by Day}
+\label{fig:days}
+\end{figure}
 
 \section{Audio Features}
 We investigated the use of the following features:
@@ -203,7 +223,7 @@ The idea behind this method is to find low-SNR energy sources that produce a coh
 \end{figure}
 
 \subsection{Principal Component Analysis}
-We investigated the appropriateness of our features by doing a Principal Component Analysis (PCA) on our data set using the above features. Figure~\ref{fig:pca_var} plots the fraction of variance explained vs the number of principal components used. We saw that the curve is not steep, and most likely over 50 of our 73 features do in fact encode significant information.
+We investigated the redundancy in our features by doing a Principal Component Analysis (PCA) on our data set using the above features. Figure~\ref{fig:pca_var} plots the fraction of variance explained vs the number of principal components used. We saw that the curve is not steep, and most likely over 50 of our 73 features do in fact encode significant information.
 
 \begin{figure}[H]
 \centering
@@ -236,39 +256,68 @@ Using the MFCC and SPD features, we investigated the following classifiers:
 \item Logistic Regression
 \item Random Forest
 \item Gaussian Kernel SVM with Logistic Tiebreaker
-\end{itemize} using  Logistic Regression, SVM with a linear kernel, and SVM with a radial basis kernel function, experimenting with different subsets of features with each algorithm. In reference to the system flow in Section \ref{Signal Flow}, we choose 10-second samples and 2-second subsamples. So, a sample will be input to the system, 5 predictions (1 for each subsample) will be made, and finally the most frequent prediction will be output.  For training, we randomly shuffle the samples and use $2/3$ as training and $1/3$ as testing. To make valid comparisons across different training instances, we reset to a given random number generator seed whenever shuffling the samples. The training flow diagram is similar to the prediction flow diagram:
+\end{itemize} The last classifier uses a Logistic Regression classifier in the case of a tie in the voting process described in Section~\ref{Signal Flow}. When picking the hyperparameters to use for each classifier, we did a 70\%-30\% split of our training dataset and then searched over a grid of parameters, evaluating based on accuracy of classification.
+
+\subsection{Generalization}
+We distinguished between 2 types of testing errors:
+\begin{enumerate}
+\item Cross-Validation Error - Error on the testing set when we split the data set completely randomly
+\item Generalization Error - Error on the testing set when we split based on random days.
+\end{enumerate}
+We did this because our data has a significant temporal correlation. We discovered that the typical cross-validation error was too optimistic because audio samples recorded on the same day can be significantly more correlated to each other than to audio recorded on different days. We were able to decrease our Cross-Validation error to around 8\% using a Gaussian SVM. However, when we attempt to use this seemingly general classifer on a completely new days' data, we discovered that this classifier was actually very overfitted. 
+
+With this aspect in mind, we were able to reduce our Generalization error to a bit less than 20\% using a Gaussian SVM with a Logistic Classifier to handle voting ties. To calculate generalization error, we did a form of 5-fold cross-validation. We held out all samples from a single day for testing while using all other days for training, and then we repeat for all 5 days. We finally do a weighted combination to calculate the Generalization Error, weighting based on the number of samples in each held out day. Table~\ref{table:error} gives a summary of our results.
+\setlength\extrarowheight{5pt}
+\begin{table}[H]
+\centering
+\caption{Classifier Comparison}
+\begin{tabularx}{\linewidth}{|X|r|r|}
+\hline
+\textbf{Classifier} & \textbf{X-Validation} & \textbf{Generalization}\\
+\hline\hline
+Gaussian Kernel SVM & 13.65\% & 21.72\%\\\hline
+Linear Kernel SVM & 27.84\% & 32.74\%\\\hline
+Logistic & 15.45\% & 21.22\%\\\hline
+Random Forest & 14.09\% & 28.26\%\\ \hline
+\noindent\parbox[c]{\hsize}{Gaussian SVM + Logistic Tiebreaker} & 13.89\% & 19.68\%\\\hline
+\end{tabularx}
+\label{table:error}
+\end{table}
+Using the SVM+Logistic classifier, we generated the following confusion matrix for one of the hold-out trials:
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.9\linewidth]{conf_mat_gen_test}
+\end{figure}
+Our classifier did relatively well in terms of accuracy for all but one region: the Oval. However, given that our classifier had high specificity with respect to the Oval label, we posit that this poor accuracy is because our data set had fewer Oval samples in comparison to the other labels (Table~\ref{tbl:locs}).
+
+\subsection{Classifier Evaluation}
+As the final step in evaluating our system, we compared the performance of our classifier to people's ability to localize based on audio clips. We created a small game that would present the user with a random 10 second audio sample. The user would then choose from which of the 7 locations the audio was taken; our classifier would do the same. The pool of participants comprised of Stanford CS229 students. The results are shown in Table~\ref{fig:game_cm}. The sample size was small, with only 41 sample points. However, it seems apparent that even Stanford students, who frequent the chosen locations, are ill-adept at identifying them by sound alone. Of the 41 audio samples, students accurately located only 11 of them for an error rate of 73.2\%. This is much higher than our classifier's generalization error of 19.68\%. We included our entire data set in the pool of audio samples used by our game, so the recorded performance of our classifier is even better than this generalization error: out of the 41 samples, our classifier correctly classified all but one.
+
+\begin{figure}[H]
+\centering
+\begin{subfigure}{\linewidth}
+\centering
+\includegraphics[width=0.9\linewidth]{conf_mat_game}
+\end{subfigure}\hfill
+\begin{subfigure}{\linewidth}
+\centering
+\includegraphics[width=0.9\linewidth]{conf_mat_game_ratio}
+\end{subfigure}
+\caption{Top: Unnormalized Human Confusion Matrix. Bottom: Normalized Human Confusion Matrix}
+\label{fig:game_cm}
+\end{figure}
+
+
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.9\linewidth]{train_flow}
-\caption{Training System Block Diagram}
+\caption{Training System Block Diagram. MAYBE DELETE THIS ONE?}
 \label{fig:training_bd}
 \end{figure}
 
-We train each classifier on subsamples. So, for each training sample, we generate 5 training subsamples. However, we calculate training and testing error based on entire samples, using the aforementioned procedure. Some of the results are below with different error penalty terms $C$:
-\begin{figure}[H]
-\centering
-\begin{subfigure}{0.5\linewidth}
-\centering
-\includegraphics[width=0.9\linewidth]{MFCC_Err}
-\end{subfigure}\hfill
-\begin{subfigure}{0.5\linewidth}
-\centering
-\includegraphics[width=0.9\linewidth]{ACF_Err}
-\end{subfigure}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.45\linewidth]{MFCC_ACF_Err}
-\end{figure}
-From these results, we conclude that the most promising simple classification algorithm is using MFCC features to train an RBF-kernel SVM with a penalty parameter $C=15$, despite the considerable gap between training and testing errors. Surprisingly, adding features in conjunction with MFCC features does not seem to improve performance for any of the simple classifiers we tried.
-
-Note we also tested other features as well that due to poor performance have not been plotted here. We saw that the FFT features did not improve upon performance when combined with the ACF features. In retrospect, this somewhat makes sense because the ACF can be calculated directly from the FFT. Somewhat surprisingly, we saw extremely bad performance when using just FFT features. For some reason, all learning algorithms would classify all inputs as Bytes Caf\'e. This may merit further investigation later.
-
-Also, we saw that the SPED features we calculated worked reasonably well when used in conjunction with a Linear SVM, obtaining about $20\%$ test error. However, it performed quite poorly using the RBF-kernel SVM that worked well with the MFCC features. In order to incorporate both, we will explore the possibility of 'Mixture of Experts' to intelligently combine the two. Furthermore, calculation of the SPED features is still rather inefficient. By exercising feature analysis, we may be able to determine certain frequency ranges that are most useful in order to reduce computations and well as feature size. 
 
 \section{Future Work}
-We plan on gathering more data points at different days of the week in order to evaluate better the generalization of our system. We also plan to investigate ensemble methods in order to combine features with MFCC in a way that improves performance rather than degrades it. If we cannot force our current feature selection to work well together, we may evaluate some of the other features that have been mentioned in the Literature, including time domain features.
+
 % references section
 
 % can use a bibliography generated by BibTeX as a .bbl file
