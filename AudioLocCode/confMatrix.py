@@ -27,6 +27,7 @@ NPERSEG = 1024;
 TSUB = 1; #NOTE: this will be used only for training. Will experiment with test format later.
 NSUB = 60; #This is just used for feature generation, doesn't really matter.
 TEST_NSUB = 10;
+NORM_NUM_SAMP = True;
 
 feature_file = 'alldaysPhi_%i_%i_%i_%i_%i_%i.pkl'%(TSUB,NSUB,FFT_BINS,FWIN,TWIN,NPERSEG);
 
@@ -115,6 +116,19 @@ if __name__ == "__main__":
             if jday != iday:
                 X_train = np.concatenate((X_train, dated_phi[jday].X),axis=0);
                 Y_train = np.append(Y_train, dated_phi[jday].Y);
+        if NORM_NUM_SAMP:
+            #Train on an equal number of each location
+            label_bins = np.bincount(Y_train.astype(int));
+            min_label = np.min(label_bins);
+            X_train2 = np.empty((0,nsub, nfeat));
+            Y_train2 = np.empty((0));
+            for reg in range(7):
+                inds = np.where(Y_train==reg)[0];
+                np.random.shuffle(inds);
+                X_train2 = np.concatenate((X_train2, X_train[inds[:min_label],:]),axis=0);
+                Y_train2 = np.append(Y_train2, Y_train[inds[:min_label]]);
+            X_train=X_train2;
+            Y_train=Y_train2;
 
         extractor.trainEnsemble1(train_samples=None, X_train=X_train, Y_train=Y_train,kernel='rbf',
                                     C=50000,gamma=1/(10000*float(myPhi.LEN)),probability=False);
